@@ -1,19 +1,17 @@
 id = "abap"
 name = "ABAP"
-description = "ABAP syntax highlighting and outline for Zed."
+description = "ABAP syntax highlighting and outline for Zed, powered by a Tree-sitter grammar."
 version = "0.1.0"
 schema_version = 1
 authors = ["Jake Mileham"]
-repository = "https://github.com/OWNER/zed-abap"
+repository = "https://github.com/SharkmanZA/zed-abap"
 
-# The grammar lives in this repo under grammar/. Zed checks out `rev` and
-# compiles grammar/src to WASM. After changing the grammar, run
-# scripts/bump-grammar.sh to commit it and update `rev`.
-#
-# Local development uses a file:// URL (only valid on this machine). Switch
-# it to the GitHub URL once the repo is pushed, and delete the old clone with
-# `rm -rf grammars/abap` before the next `zed: rebuild dev extension`.
+# The grammar lives in this repo under grammar/. Zed fetches `rev` from
+# `repository` and compiles grammar/src to WASM. After changing the grammar,
+# run scripts/bump-grammar.sh (commits it and updates `rev`), then
+# `git push`, then `zed: rebuild dev extension`. See README for switching to
+# a file:// URL for offline work.
 [grammars.abap]
-repository = "file:///Users/Work/Documents/Personal/Projects/zed-abap"
+repository = "https://github.com/SharkmanZA/zed-abap"
 rev = "99ec3069beabafbd604c811fbaeeea183ff04a4c"
 path = "grammar"

@@ -14,7 +14,7 @@
     "license": "MIT",
     "description": "ABAP grammar for tree-sitter",
     "links": {
-      "repository": "https://github.com/OWNER/zed-abap"
+      "repository": "https://github.com/SharkmanZA/zed-abap"
     }
   }
 }

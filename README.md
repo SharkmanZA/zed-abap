@@ -44,15 +44,19 @@ Zed builds the grammar from a **commit**, not your working tree. After changing 
 scripts/bump-grammar.sh "Describe the grammar change"
 ```
 
-The script regenerates the parser, runs the corpus tests, and checks that every `languages/abap/*.scm` query still compiles. A broken query stops the whole language loading in Zed. It then commits **only** `grammar/`, updates `rev` in `extension.toml`, and commits only that file. After that, run **`zed: rebuild dev extension`**.
+The script regenerates the parser, runs the corpus tests, and checks that every `languages/abap/*.scm` query still compiles. A broken query stops the whole language loading in Zed. It then commits **only** `grammar/`, updates `rev` in `extension.toml`, and commits only that file.
+
+Zed fetches that commit from GitHub, so **`git push`** before running **`zed: rebuild dev extension`**.
 
 Query (`.scm`) and `config.toml` changes only need the rebuild, plus a normal commit.
 
-## Grammar source: local path vs GitHub
+## Grammar source: GitHub vs local path
 
-`[grammars.abap].repository` in `extension.toml` is a `file://` URL to this folder on this machine. That's convenient for local development, but it only works here.
+`[grammars.abap].repository` points at `https://github.com/SharkmanZA/zed-abap`. The repo is private, so Zed's `git fetch` uses your normal git credentials (osxkeychain).
 
-When you switch it to the GitHub URL (or move the folder), **delete the existing clone first**:
+To iterate on the grammar without pushing, point it at this folder instead, e.g. `file:///Users/Work/Documents/Personal/Projects/zed-abap`. Don't commit that.
+
+Whenever you change `repository`, **delete the existing clone first**:
 
 ```sh
 rm -rf grammars/abap
@@ -76,10 +80,6 @@ Otherwise `zed: rebuild dev extension` fails with "grammar directory … already
 - Block structure (IF/ENDIF, METHOD/ENDMETHOD) for code folding, a nested outline and auto-indent.
 - abaplint language server for diagnostics.
 
-## Publishing
+## License
 
-After pushing to GitHub:
-
-- Replace `OWNER` in `extension.toml` and `grammar/tree-sitter.json`.
-- Switch `[grammars.abap].repository` to the GitHub URL (see above).
-- Add a LICENSE file to match the MIT licence declared in `grammar/package.json`.
+MIT, see [LICENSE](LICENSE).

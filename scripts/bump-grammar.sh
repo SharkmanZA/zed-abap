@@ -2,7 +2,7 @@
 # Regenerate the parser, run the grammar tests, check that every Zed query
 # still compiles against it, commit grammar/ (only grammar/) and point
 # extension.toml's `rev` at that commit (committing only extension.toml).
-# Then run "zed: rebuild dev extension" in Zed.
+# Then git push and run "zed: rebuild dev extension" in Zed.
 #
 # Usage: scripts/bump-grammar.sh ["commit message"]   (from any directory)
 set -euo pipefail
@@ -44,4 +44,4 @@ else
   git commit -m "Bump grammar rev to ${sha:0:7}" -- extension.toml
   echo "extension.toml rev -> $sha"
 fi
-echo "Now run 'zed: rebuild dev extension' in Zed."
+echo "Now git push, then run 'zed: rebuild dev extension' in Zed (Zed fetches rev from GitHub)."
