@@ -1,0 +1,18 @@
+id = "abap"
+name = "ABAP"
+description = "ABAP syntax highlighting and outline for Zed."
+version = "0.1.0"
+schema_version = 1
+authors = ["Jake Mileham"]
+repository = "https://github.com/OWNER/zed-abap"
+
+# The grammar lives in this repo under grammar/. Zed checks out `rev` and
+# compiles grammar/src to WASM. After changing the grammar, run
+# scripts/bump-grammar.sh to commit it and update `rev`.
+#
+# Local development uses a file:// URL. Switch it to the GitHub URL once the
+# repo is pushed.
+[grammars.abap]
+repository = "file:///Users/Work/Documents/Personal/Projects/zed-abap"
+rev = "47ae5fd129ea1857187271c0c5538c618b72f5c6"
+path = "grammar"
