@@ -11,10 +11,14 @@
 //             `meth( x )`, `meth( )`. A `(` followed by anything else is
 //             offset/length or an inline declaration (`lv(4)`, `DATA(x)`) and
 //             is left to the internal lexer.
+//
+// ERROR_SENTINEL is never used by a grammar rule, so it is only ever valid
+// during error recovery, when tree-sitter marks every symbol valid. In that
+// state we don't emit CALL_OPEN, since we can't tell whether a name precedes.
 
 #include "tree_sitter/parser.h"
 
-enum TokenType { COMMENT, CALL_OPEN };
+enum TokenType { COMMENT, CALL_OPEN, ERROR_SENTINEL };
 
 void *tree_sitter_abap_external_scanner_create(void) { return NULL; }
 void tree_sitter_abap_external_scanner_destroy(void *payload) {}
@@ -26,8 +30,10 @@ static bool is_space(int32_t c) {
 }
 
 bool tree_sitter_abap_external_scanner_scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
+  bool in_error_recovery = valid_symbols[ERROR_SENTINEL];
+
   // No whitespace is skipped first: the `(` must touch the preceding name.
-  if (valid_symbols[CALL_OPEN] && lexer->lookahead == '(') {
+  if (valid_symbols[CALL_OPEN] && !in_error_recovery && lexer->lookahead == '(') {
     lexer->advance(lexer, false);
     lexer->mark_end(lexer);
     if (is_space(lexer->lookahead) || lexer->lookahead == ')') {

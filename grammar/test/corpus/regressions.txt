@@ -1,0 +1,193 @@
+==================
+Members and methods spelled like grammar keywords
+==================
+
+lv = lo->value.
+IF lo->ref IS BOUND.
+lv = zcl=>new.
+lo = zcl_foo=>new( ).
+lt = lo->filter( iv = 1 ).
+METHOD zif_x~value.
+SELECT ztab~ref FROM ztab.
+
+---
+
+(source_file
+  (statement
+    (name)
+    (operator)
+    (member_access
+      (name)
+      (name)))
+  (statement
+    (name)
+    (member_access
+      (name)
+      (name))
+    (name)
+    (name))
+  (statement
+    (name)
+    (operator)
+    (member_access
+      (name)
+      (name)))
+  (statement
+    (name)
+    (operator)
+    (member_access
+      (name)
+      (call
+        (name))))
+  (statement
+    (name)
+    (operator)
+    (member_access
+      (name)
+      (call
+        (name)
+        (name)
+        (operator)
+        (number))))
+  (statement
+    (name)
+    (member_access
+      (name)
+      (name)))
+  (statement
+    (name)
+    (member_access
+      (name)
+      (name))
+    (name)
+    (name)))
+
+==================
+Dynamic member access
+==================
+
+ASSIGN lo->(lv_attr) TO <fs>.
+CALL METHOD zcl_x=>(lv_meth).
+
+---
+
+(source_file
+  (statement
+    (name)
+    (member_access
+      (name)
+      (parenthesized
+        (name)))
+    (keyword)
+    (field_symbol))
+  (statement
+    (name)
+    (name)
+    (member_access
+      (name)
+      (parenthesized
+        (name)))))
+
+==================
+Chained access off a constructor expression
+==================
+
+lo = NEW zcl_foo( )->run( ).
+CAST zif_x( lo )->meth( ).
+
+---
+
+(source_file
+  (statement
+    (name)
+    (operator)
+    (member_access
+      (constructor_expression
+        (keyword)
+        (call
+          (name)))
+      (call
+        (name))))
+  (statement
+    (member_access
+      (constructor_expression
+        (keyword)
+        (call
+          (name)
+          (name)))
+      (call
+        (name)))))
+
+==================
+LINE OF
+==================
+
+DATA ls TYPE LINE OF ty_tab.
+
+---
+
+(source_file
+  (statement
+    (name)
+    (name)
+    (type_spec
+      (keyword)
+      (table_type
+        (keyword)
+        (keyword)
+        (type_name
+          (name))))))
+
+==================
+Keywords after a column named type
+==================
+
+SELECT type FROM ztab WHERE type IN @lt.
+SORT lt BY type DESCENDING.
+
+---
+
+(source_file
+  (statement
+    (name)
+    (type_spec
+      (keyword)
+      (type_name
+        (name)))
+    (name)
+    (name)
+    (type_spec
+      (keyword)
+      (type_name
+        (name)))
+    (operator)
+    (name))
+  (statement
+    (name)
+    (name)
+    (name)
+    (type_spec
+      (keyword)
+      (type_name
+        (name)))))
+
+==================
+Generic TYPE TABLE
+==================
+
+METHODS m CHANGING t_table TYPE TABLE RAISING cx_x.
+
+---
+
+(source_file
+  (statement
+    (name)
+    (name)
+    (name)
+    (name)
+    (type_spec
+      (keyword)
+      (table_type
+        (keyword)))
+    (name)
+    (name)))

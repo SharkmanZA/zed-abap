@@ -17,22 +17,26 @@ DATA: a TYPE i,
     (name)
     (type_spec
       (keyword)
-      type: (name))
+      type: (type_name
+        (name)))
     (name)
     (type_spec
       (keyword)
       (ref_type
         (keyword)
         (keyword)
-        type: (name)))
+        type: (type_name
+          (name))))
     (name)
     (type_spec
       (keyword)
-      type: (name))
+      type: (type_name
+        (name)))
     (table_type
       (keyword)
       (keyword)
-      type: (name))
+      type: (type_name
+        (name)))
     (name)
     (name)
     (name)
@@ -42,7 +46,8 @@ DATA: a TYPE i,
       (table_type
         (keyword)
         (keyword)
-        type: (name)))
+        type: (type_name
+          (name))))
     (name)
     (type_spec
       (keyword)
@@ -52,13 +57,15 @@ DATA: a TYPE i,
         (ref_type
           (keyword)
           (keyword)
-          type: (name))))
+          type: (type_name
+            (name)))))
     (name)
     (type_spec
       (keyword)
-      type: (member_access
-        object: (name)
-        member: (name)))))
+      type: (type_name
+        (member_access
+          object: (name)
+          member: (name))))))
 
 ==================
 Keyword spellings used as plain words
@@ -131,11 +138,12 @@ METHODS m RETURNING VALUE(rv) TYPE i.
     (name)
     (name)
     (access
-      name: (keyword)
+      name: (name)
       (name))
     (type_spec
       (keyword)
-      type: (name))))
+      type: (type_name
+        (name)))))
 
 ==================
 Constructor expressions
@@ -177,7 +185,8 @@ CONSTANTS c TYPE i VALUE 100.
     (name)
     (type_spec
       (keyword)
-      type: (name))
+      type: (type_name
+        (name)))
     (keyword)
     (number)))
 

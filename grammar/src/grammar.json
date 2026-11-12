@@ -75,10 +75,6 @@
         },
         {
           "type": "SYMBOL",
-          "name": "constructor_expression"
-        },
-        {
-          "type": "SYMBOL",
           "name": "_keyword"
         },
         {
@@ -113,6 +109,28 @@
         {
           "type": "SYMBOL",
           "name": "member_access"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "constructor_expression"
+        }
+      ]
+    },
+    "_identifier": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "name"
+        },
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_any_keyword"
+          },
+          "named": true,
+          "value": "name"
         }
       ]
     },
@@ -164,7 +182,7 @@
           "name": "name",
           "content": {
             "type": "SYMBOL",
-            "name": "name"
+            "name": "_identifier"
           }
         },
         {
@@ -196,17 +214,8 @@
           "type": "FIELD",
           "name": "name",
           "content": {
-            "type": "CHOICE",
-            "members": [
-              {
-                "type": "SYMBOL",
-                "name": "name"
-              },
-              {
-                "type": "SYMBOL",
-                "name": "_keyword"
-              }
-            ]
+            "type": "SYMBOL",
+            "name": "_identifier"
           }
         },
         {
@@ -281,7 +290,7 @@
               "members": [
                 {
                   "type": "SYMBOL",
-                  "name": "name"
+                  "name": "_identifier"
                 },
                 {
                   "type": "SYMBOL",
@@ -290,6 +299,10 @@
                 {
                   "type": "SYMBOL",
                   "name": "access"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "parenthesized"
                 },
                 {
                   "type": "ALIAS",
@@ -556,7 +569,7 @@
         ]
       }
     },
-    "_type_name": {
+    "type_name": {
       "type": "CHOICE",
       "members": [
         {
@@ -595,7 +608,7 @@
                     "name": "type",
                     "content": {
                       "type": "SYMBOL",
-                      "name": "_type_name"
+                      "name": "type_name"
                     }
                   },
                   {
@@ -648,7 +661,7 @@
                 "name": "type",
                 "content": {
                   "type": "SYMBOL",
-                  "name": "_type_name"
+                  "name": "type_name"
                 }
               },
               {
@@ -677,6 +690,10 @@
                 {
                   "type": "SYMBOL",
                   "name": "_kw_range"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "_kw_line"
                 }
               ]
             },
@@ -709,7 +726,7 @@
                             "name": "type",
                             "content": {
                               "type": "SYMBOL",
-                              "name": "_type_name"
+                              "name": "type_name"
                             }
                           },
                           {
@@ -862,6 +879,79 @@
       "named": true,
       "value": "keyword"
     },
+    "_any_keyword": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "_kw_type"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_kw_ref"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_kw_to"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_kw_table"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_kw_range"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_kw_line"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_kw_of"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_kw_new"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_kw_value"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_kw_conv"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_kw_cast"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_kw_exact"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_kw_corresponding"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_kw_reduce"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_kw_cond"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_kw_switch"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_kw_filter"
+        }
+      ]
+    },
     "_kw_type": {
       "type": "CHOICE",
       "members": [
@@ -944,6 +1034,23 @@
         {
           "type": "STRING",
           "value": "Range"
+        }
+      ]
+    },
+    "_kw_line": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "line"
+        },
+        {
+          "type": "STRING",
+          "value": "LINE"
+        },
+        {
+          "type": "STRING",
+          "value": "Line"
         }
       ]
     },
@@ -1160,6 +1267,10 @@
     {
       "type": "SYMBOL",
       "name": "_call_open"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_error_sentinel"
     }
   ],
   "inline": [],

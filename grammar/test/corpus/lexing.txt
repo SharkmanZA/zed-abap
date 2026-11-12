@@ -93,11 +93,13 @@ DATA: a TYPE i,
     (name)
     (type_spec
       (keyword)
-      (name))
+      (type_name
+        (name)))
     (name)
     (type_spec
       (keyword)
-      (name))))
+      (type_name
+        (name)))))
 
 ==================
 String template with quotes, escapes and embedded expressions

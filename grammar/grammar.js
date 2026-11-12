@@ -43,7 +43,9 @@ module.exports = grammar({
   // `comment` is both external and internal: the C scanner handles `*`
   // comments (only in column 0) and the internal lexer handles `"` comments.
   // `_call_open` is a "(" directly after a name and followed by a blank or ")".
-  externals: $ => [$.comment, $._call_open],
+  // `_error_sentinel` is never used by a rule, so the scanner sees it as valid
+  // only during error recovery (when every symbol is valid).
+  externals: $ => [$.comment, $._call_open, $._error_sentinel],
 
   extras: $ => [/\s/, $.comment],
 
@@ -70,7 +72,6 @@ module.exports = grammar({
       $.type_spec,
       $.ref_type,
       $.table_type,
-      $.constructor_expression,
       $._keyword,
       ':',
       ',',
@@ -82,7 +83,13 @@ module.exports = grammar({
       $.access,
       $.field_symbol,
       $.member_access,
+      $.constructor_expression,
     ),
+
+    // A name in a position where only an identifier makes sense (method,
+    // attribute, call or access name). Grammar keywords are accepted here as
+    // plain names: `lo->value`, `zcl=>new( )`, `METHOD zif~ref.`
+    _identifier: $ => choice($.name, alias($._any_keyword, $.name)),
 
     // Identifiers and keywords. Hyphens bind tightly because ABAP requires
     // whitespace around the minus operator, so `ls_x-field`, `sy-subrc` and
@@ -95,7 +102,7 @@ module.exports = grammar({
 
     // Functional method call: ABAP requires a blank (or `)`) after the `(`.
     call: $ => seq(
-      field('name', $.name),
+      field('name', $._identifier),
       alias($._call_open, '('),
       repeat($._token),
       ')',
@@ -104,7 +111,7 @@ module.exports = grammar({
     // `(` with no blank after it: offset/length `lv(4)`, inline declarations
     // `DATA(x)`, short-form messages `e001(zmsg)`, `VALUE(rv)` parameters.
     access: $ => seq(
-      field('name', choice($.name, $._keyword)),
+      field('name', $._identifier),
       token.immediate('('),
       repeat($._token),
       ')',
@@ -117,7 +124,13 @@ module.exports = grammar({
         token.immediate('=>'),
         token.immediate('~'),
       )),
-      field('member', choice($.name, $.call, $.access, alias(token.immediate('*'), '*'))),
+      field('member', choice(
+        $._identifier,
+        $.call,
+        $.access,
+        $.parenthesized,                      // dynamic: lo->(lv_attr)
+        alias(token.immediate('*'), '*'),     // dereference: lr->*
+      )),
     )),
 
     field_symbol: _ => token(seq(/<[A-Za-z0-9_\/]+>/, repeat(seq('-', NAME_PART)))),
@@ -165,13 +178,14 @@ module.exports = grammar({
 
     // ---- Type positions -------------------------------------------------
 
-    _type_name: $ => choice($.name, $.member_access),
+    // The type operand of TYPE / REF TO / TABLE OF / RANGE OF / LINE OF.
+    type_name: $ => choice($.name, $.member_access),
 
     // TYPE x. The operand is optional so `SELECT type, text ...` still parses.
     type_spec: $ => prec.right(seq(
       alias($._kw_type, $.keyword),
       optional(choice(
-        field('type', $._type_name),
+        field('type', $.type_name),
         $.ref_type,
         $.table_type,
       )),
@@ -181,16 +195,16 @@ module.exports = grammar({
     ref_type: $ => prec.right(1, seq(
       alias($._kw_ref, $.keyword),
       alias($._kw_to, $.keyword),
-      optional(field('type', $._type_name)),
+      optional(field('type', $.type_name)),
     )),
 
-    // TABLE OF x / RANGE OF x. `OF x` is optional: generic `TYPE TABLE`,
-    // `INTO TABLE @lt`, `DELETE TABLE lt ...`.
+    // TABLE OF x / RANGE OF x / LINE OF x. `OF x` is optional: generic
+    // `TYPE TABLE`, `INTO TABLE @lt`, `DELETE TABLE lt ...`.
     table_type: $ => prec.right(1, seq(
-      alias(choice($._kw_table, $._kw_range), $.keyword),
+      alias(choice($._kw_table, $._kw_range, $._kw_line), $.keyword),
       optional(seq(
         alias($._kw_of, $.keyword),
-        optional(choice(field('type', $._type_name), $.ref_type)),
+        optional(choice(field('type', $.type_name), $.ref_type)),
       )),
     )),
 
@@ -202,18 +216,24 @@ module.exports = grammar({
     ),
 
     // Keywords that are tokens in the grammar, usable on their own anywhere.
-    // (A lone TYPE / TABLE / RANGE is already a type_spec / table_type with no
+    // (A lone TYPE / TABLE / RANGE / LINE is already a type_spec / table_type with no
     // operand.)
     _keyword: $ => alias(choice(
       $._kw_ref, $._kw_to, $._kw_of,
       ...CONSTRUCTORS.map(k => $[`_kw_${k}`]),
     ), $.keyword),
 
+    _any_keyword: $ => choice(
+      $._kw_type, $._kw_ref, $._kw_to, $._kw_table, $._kw_range, $._kw_line, $._kw_of,
+      ...CONSTRUCTORS.map(k => $[`_kw_${k}`]),
+    ),
+
     _kw_type: _ => ci('type'),
     _kw_ref: _ => ci('ref'),
     _kw_to: _ => ci('to'),
     _kw_table: _ => ci('table'),
     _kw_range: _ => ci('range'),
+    _kw_line: _ => ci('line'),
     _kw_of: _ => ci('of'),
     ...Object.fromEntries(CONSTRUCTORS.map(k => [`_kw_${k}`, _ => ci(k)])),
   },
