@@ -10,8 +10,9 @@ repository = "https://github.com/OWNER/zed-abap"
 # compiles grammar/src to WASM. After changing the grammar, run
 # scripts/bump-grammar.sh to commit it and update `rev`.
 #
-# Local development uses a file:// URL. Switch it to the GitHub URL once the
-# repo is pushed.
+# Local development uses a file:// URL (only valid on this machine). Switch
+# it to the GitHub URL once the repo is pushed, and delete the old clone with
+# `rm -rf grammars/abap` before the next `zed: rebuild dev extension`.
 [grammars.abap]
 repository = "file:///Users/Work/Documents/Personal/Projects/zed-abap"
 rev = "6dd90f1e18728758d876ca5b8c72ecacc94b1e30"

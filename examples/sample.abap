@@ -1,9 +1,13 @@
 *&---------------------------------------------------------------------*
 *& Report ZDEMO_ABAP_HIGHLIGHTING
+*& Highlighting showcase only: it references example objects
+*& (zcl_logger, lo_alv, /use/cl_namespace, ...) that don't exist.
 *&---------------------------------------------------------------------*
 REPORT zdemo_abap_highlighting.
 
 TABLES: pa0001.
+
+CLASS lcl_app DEFINITION DEFERRED.
 
 CONSTANTS gc_max TYPE i VALUE 100.
 
@@ -50,6 +54,11 @@ CLASS lcl_app IMPLEMENTATION.
     mt_cache = VALUE #( FOR ls IN lt_flights WHERE ( price > 0 ) ( ls ) ).
     DATA(ls_first) = lt_flights[ 1 ].
     zcl_logger=>get_instance( )->log( iv_text = lv_msg ) ##NEEDED.
+    lo_alv->display( ).
+    DATA(lv_year) = sy-datum(4).
+    DATA(lo_other) = NEW lcl_app( ).
+    DATA(lv_str) = CONV string( lv_year ).
+    APPEND LINES OF lt_flights TO mt_cache_list.
     me->mt_cache = CORRESPONDING #( lt_flights ).
 
     TRY.
