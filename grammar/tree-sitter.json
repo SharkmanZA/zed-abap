@@ -1,0 +1,20 @@
+{
+  "grammars": [
+    {
+      "name": "abap",
+      "camelcase": "Abap",
+      "scope": "source.abap",
+      "path": ".",
+      "file-types": ["abap"],
+      "highlights": "../languages/abap/highlights.scm"
+    }
+  ],
+  "metadata": {
+    "version": "0.1.0",
+    "license": "MIT",
+    "description": "ABAP grammar for tree-sitter",
+    "links": {
+      "repository": "https://github.com/OWNER/zed-abap"
+    }
+  }
+}

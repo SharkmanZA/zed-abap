@@ -1,0 +1,9 @@
+node_modules/
+# Built by Zed when installing as a dev extension
+/grammars/
+*.wasm
+# tree-sitter CLI build outputs
+grammar/build/
+*.dylib
+*.so
+.DS_Store
