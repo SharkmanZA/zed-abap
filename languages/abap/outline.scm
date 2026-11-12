@@ -8,6 +8,6 @@
    .
    (name) @context
    .
-   [(name) (member_access)] @name
+   [(name) (keyword) (member_access)] @name
    (#match? @context "^(?i:report|program|class|interface|method|form|function|module)$")) @item
   (#not-match? @item "(?i)\\s(deferred|load)\\s*\\.$"))
