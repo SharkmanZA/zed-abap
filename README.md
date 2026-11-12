@@ -2,6 +2,11 @@
 
 ABAP language support for [Zed](https://zed.dev): syntax highlighting, outline / symbol search, bracket matching and comment toggling.
 
+> [!NOTE]
+> **This project is "vibe coded".** The grammar, scanner, queries, scripts and docs were written by [Claude Code](https://claude.com/claude-code) (Anthropic's AI coding agent) from plain-language direction, not by hand.
+> It was also **reviewed entirely by Claude**: two multi-agent Claude code reviews whose findings were all fixed. Testing was a tree-sitter test corpus, real SAP standard classes, and a benchmark that replicates Zed's highlighting path.
+> Expect rough edges, and please open an issue if some ABAP doesn't parse or highlight correctly.
+
 ```
 zed-abap/
 ├── extension.toml          # Zed extension manifest (points at grammar/ by commit SHA)
