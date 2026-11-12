@@ -15,5 +15,5 @@ repository = "https://github.com/OWNER/zed-abap"
 # `rm -rf grammars/abap` before the next `zed: rebuild dev extension`.
 [grammars.abap]
 repository = "file:///Users/Work/Documents/Personal/Projects/zed-abap"
-rev = "6dd90f1e18728758d876ca5b8c72ecacc94b1e30"
+rev = "99ec3069beabafbd604c811fbaeeea183ff04a4c"
 path = "grammar"
