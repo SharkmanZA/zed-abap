@@ -1,12 +1,31 @@
 [
   {
-    "type": "bracketed",
+    "type": "access",
     "named": true,
-    "fields": {},
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "keyword",
+            "named": true
+          },
+          {
+            "type": "name",
+            "named": true
+          }
+        ]
+      }
+    },
     "children": {
       "multiple": true,
       "required": false,
       "types": [
+        {
+          "type": "access",
+          "named": true
+        },
         {
           "type": "bracketed",
           "named": true
@@ -16,7 +35,19 @@
           "named": true
         },
         {
+          "type": "constructor_expression",
+          "named": true
+        },
+        {
           "type": "field_symbol",
+          "named": true
+        },
+        {
+          "type": "keyword",
+          "named": true
+        },
+        {
+          "type": "member_access",
           "named": true
         },
         {
@@ -40,11 +71,102 @@
           "named": true
         },
         {
+          "type": "ref_type",
+          "named": true
+        },
+        {
           "type": "string",
           "named": true
         },
         {
+          "type": "table_type",
+          "named": true
+        },
+        {
           "type": "template",
+          "named": true
+        },
+        {
+          "type": "type_spec",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "bracketed",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "access",
+          "named": true
+        },
+        {
+          "type": "bracketed",
+          "named": true
+        },
+        {
+          "type": "call",
+          "named": true
+        },
+        {
+          "type": "constructor_expression",
+          "named": true
+        },
+        {
+          "type": "field_symbol",
+          "named": true
+        },
+        {
+          "type": "keyword",
+          "named": true
+        },
+        {
+          "type": "member_access",
+          "named": true
+        },
+        {
+          "type": "name",
+          "named": true
+        },
+        {
+          "type": "number",
+          "named": true
+        },
+        {
+          "type": "operator",
+          "named": true
+        },
+        {
+          "type": "parenthesized",
+          "named": true
+        },
+        {
+          "type": "pragma",
+          "named": true
+        },
+        {
+          "type": "ref_type",
+          "named": true
+        },
+        {
+          "type": "string",
+          "named": true
+        },
+        {
+          "type": "table_type",
+          "named": true
+        },
+        {
+          "type": "template",
+          "named": true
+        },
+        {
+          "type": "type_spec",
           "named": true
         }
       ]
@@ -70,6 +192,10 @@
       "required": false,
       "types": [
         {
+          "type": "access",
+          "named": true
+        },
+        {
           "type": "bracketed",
           "named": true
         },
@@ -78,7 +204,19 @@
           "named": true
         },
         {
+          "type": "constructor_expression",
+          "named": true
+        },
+        {
           "type": "field_symbol",
+          "named": true
+        },
+        {
+          "type": "keyword",
+          "named": true
+        },
+        {
+          "type": "member_access",
           "named": true
         },
         {
@@ -102,11 +240,49 @@
           "named": true
         },
         {
+          "type": "ref_type",
+          "named": true
+        },
+        {
           "type": "string",
           "named": true
         },
         {
+          "type": "table_type",
+          "named": true
+        },
+        {
           "type": "template",
+          "named": true
+        },
+        {
+          "type": "type_spec",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "constructor_expression",
+    "named": true,
+    "fields": {
+      "type": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "call",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "keyword",
           "named": true
         }
       ]
@@ -121,6 +297,10 @@
       "required": false,
       "types": [
         {
+          "type": "access",
+          "named": true
+        },
+        {
           "type": "bracketed",
           "named": true
         },
@@ -129,7 +309,19 @@
           "named": true
         },
         {
+          "type": "constructor_expression",
+          "named": true
+        },
+        {
           "type": "field_symbol",
+          "named": true
+        },
+        {
+          "type": "keyword",
+          "named": true
+        },
+        {
+          "type": "member_access",
           "named": true
         },
         {
@@ -153,14 +345,103 @@
           "named": true
         },
         {
+          "type": "ref_type",
+          "named": true
+        },
+        {
           "type": "string",
+          "named": true
+        },
+        {
+          "type": "table_type",
           "named": true
         },
         {
           "type": "template",
           "named": true
+        },
+        {
+          "type": "type_spec",
+          "named": true
         }
       ]
+    }
+  },
+  {
+    "type": "keyword",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "member_access",
+    "named": true,
+    "fields": {
+      "member": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "*",
+            "named": false
+          },
+          {
+            "type": "access",
+            "named": true
+          },
+          {
+            "type": "call",
+            "named": true
+          },
+          {
+            "type": "name",
+            "named": true
+          }
+        ]
+      },
+      "object": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "access",
+            "named": true
+          },
+          {
+            "type": "call",
+            "named": true
+          },
+          {
+            "type": "field_symbol",
+            "named": true
+          },
+          {
+            "type": "member_access",
+            "named": true
+          },
+          {
+            "type": "name",
+            "named": true
+          }
+        ]
+      },
+      "operator": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "->",
+            "named": false
+          },
+          {
+            "type": "=>",
+            "named": false
+          },
+          {
+            "type": "~",
+            "named": false
+          }
+        ]
+      }
     }
   },
   {
@@ -172,6 +453,10 @@
       "required": false,
       "types": [
         {
+          "type": "access",
+          "named": true
+        },
+        {
           "type": "bracketed",
           "named": true
         },
@@ -180,7 +465,19 @@
           "named": true
         },
         {
+          "type": "constructor_expression",
+          "named": true
+        },
+        {
           "type": "field_symbol",
+          "named": true
+        },
+        {
+          "type": "keyword",
+          "named": true
+        },
+        {
+          "type": "member_access",
           "named": true
         },
         {
@@ -204,11 +501,53 @@
           "named": true
         },
         {
+          "type": "ref_type",
+          "named": true
+        },
+        {
           "type": "string",
           "named": true
         },
         {
+          "type": "table_type",
+          "named": true
+        },
+        {
           "type": "template",
+          "named": true
+        },
+        {
+          "type": "type_spec",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "ref_type",
+    "named": true,
+    "fields": {
+      "type": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "member_access",
+            "named": true
+          },
+          {
+            "type": "name",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "keyword",
           "named": true
         }
       ]
@@ -239,6 +578,10 @@
       "required": false,
       "types": [
         {
+          "type": "access",
+          "named": true
+        },
+        {
           "type": "bracketed",
           "named": true
         },
@@ -247,7 +590,19 @@
           "named": true
         },
         {
+          "type": "constructor_expression",
+          "named": true
+        },
+        {
           "type": "field_symbol",
+          "named": true
+        },
+        {
+          "type": "keyword",
+          "named": true
+        },
+        {
+          "type": "member_access",
           "named": true
         },
         {
@@ -271,11 +626,57 @@
           "named": true
         },
         {
+          "type": "ref_type",
+          "named": true
+        },
+        {
           "type": "string",
           "named": true
         },
         {
+          "type": "table_type",
+          "named": true
+        },
+        {
           "type": "template",
+          "named": true
+        },
+        {
+          "type": "type_spec",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "table_type",
+    "named": true,
+    "fields": {
+      "type": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "member_access",
+            "named": true
+          },
+          {
+            "type": "name",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "keyword",
+          "named": true
+        },
+        {
+          "type": "ref_type",
           "named": true
         }
       ]
@@ -305,6 +706,44 @@
     }
   },
   {
+    "type": "type_spec",
+    "named": true,
+    "fields": {
+      "type": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "member_access",
+            "named": true
+          },
+          {
+            "type": "name",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "keyword",
+          "named": true
+        },
+        {
+          "type": "ref_type",
+          "named": true
+        },
+        {
+          "type": "table_type",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "(",
     "named": false
   },
@@ -313,7 +752,15 @@
     "named": false
   },
   {
+    "type": "*",
+    "named": false
+  },
+  {
     "type": ",",
+    "named": false
+  },
+  {
+    "type": "->",
     "named": false
   },
   {
@@ -325,6 +772,138 @@
     "named": false
   },
   {
+    "type": "=>",
+    "named": false
+  },
+  {
+    "type": "CAST",
+    "named": false
+  },
+  {
+    "type": "COND",
+    "named": false
+  },
+  {
+    "type": "CONV",
+    "named": false
+  },
+  {
+    "type": "CORRESPONDING",
+    "named": false
+  },
+  {
+    "type": "Cast",
+    "named": false
+  },
+  {
+    "type": "Cond",
+    "named": false
+  },
+  {
+    "type": "Conv",
+    "named": false
+  },
+  {
+    "type": "Corresponding",
+    "named": false
+  },
+  {
+    "type": "EXACT",
+    "named": false
+  },
+  {
+    "type": "Exact",
+    "named": false
+  },
+  {
+    "type": "FILTER",
+    "named": false
+  },
+  {
+    "type": "Filter",
+    "named": false
+  },
+  {
+    "type": "NEW",
+    "named": false
+  },
+  {
+    "type": "New",
+    "named": false
+  },
+  {
+    "type": "OF",
+    "named": false
+  },
+  {
+    "type": "Of",
+    "named": false
+  },
+  {
+    "type": "RANGE",
+    "named": false
+  },
+  {
+    "type": "REDUCE",
+    "named": false
+  },
+  {
+    "type": "REF",
+    "named": false
+  },
+  {
+    "type": "Range",
+    "named": false
+  },
+  {
+    "type": "Reduce",
+    "named": false
+  },
+  {
+    "type": "Ref",
+    "named": false
+  },
+  {
+    "type": "SWITCH",
+    "named": false
+  },
+  {
+    "type": "Switch",
+    "named": false
+  },
+  {
+    "type": "TABLE",
+    "named": false
+  },
+  {
+    "type": "TO",
+    "named": false
+  },
+  {
+    "type": "TYPE",
+    "named": false
+  },
+  {
+    "type": "Table",
+    "named": false
+  },
+  {
+    "type": "To",
+    "named": false
+  },
+  {
+    "type": "Type",
+    "named": false
+  },
+  {
+    "type": "VALUE",
+    "named": false
+  },
+  {
+    "type": "Value",
+    "named": false
+  },
+  {
     "type": "[",
     "named": false
   },
@@ -333,25 +912,57 @@
     "named": false
   },
   {
+    "type": "cast",
+    "named": false
+  },
+  {
     "type": "comment",
     "named": true,
     "extra": true
+  },
+  {
+    "type": "cond",
+    "named": false
+  },
+  {
+    "type": "conv",
+    "named": false
+  },
+  {
+    "type": "corresponding",
+    "named": false
   },
   {
     "type": "escape_sequence",
     "named": true
   },
   {
+    "type": "exact",
+    "named": false
+  },
+  {
     "type": "field_symbol",
     "named": true
+  },
+  {
+    "type": "filter",
+    "named": false
   },
   {
     "type": "name",
     "named": true
   },
   {
+    "type": "new",
+    "named": false
+  },
+  {
     "type": "number",
     "named": true
+  },
+  {
+    "type": "of",
+    "named": false
   },
   {
     "type": "operator",
@@ -362,12 +973,44 @@
     "named": true
   },
   {
+    "type": "range",
+    "named": false
+  },
+  {
+    "type": "reduce",
+    "named": false
+  },
+  {
+    "type": "ref",
+    "named": false
+  },
+  {
     "type": "string",
     "named": true
   },
   {
+    "type": "switch",
+    "named": false
+  },
+  {
+    "type": "table",
+    "named": false
+  },
+  {
     "type": "template_content",
     "named": true
+  },
+  {
+    "type": "to",
+    "named": false
+  },
+  {
+    "type": "type",
+    "named": false
+  },
+  {
+    "type": "value",
+    "named": false
   },
   {
     "type": "{",
@@ -379,6 +1022,10 @@
   },
   {
     "type": "}",
+    "named": false
+  },
+  {
+    "type": "~",
     "named": false
   }
 ]

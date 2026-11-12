@@ -10,7 +10,15 @@ SELECT * FROM t INTO TABLE @lt.
 (source_file
   (comment)
   (statement
-    (name) (operator) (name) (name) (name) (name) (operator) (name)))
+    (name)
+    (operator)
+    (name)
+    (name)
+    (name)
+    (table_type
+      (keyword))
+    (operator)
+    (name)))
 
 ==================
 Double-quote comment after statement
@@ -21,7 +29,9 @@ WRITE 'x'. " trailing
 ---
 
 (source_file
-  (statement (name) (string))
+  (statement
+    (name)
+    (string))
   (comment))
 
 ==================
@@ -34,7 +44,14 @@ IF sy-subrc = 0 AND <ls>-field IS INITIAL.
 
 (source_file
   (statement
-    (name) (name) (operator) (number) (name) (field_symbol) (name) (name)))
+    (name)
+    (name)
+    (operator)
+    (number)
+    (name)
+    (field_symbol)
+    (name)
+    (name)))
 
 ==================
 Calls, method chains and inline declarations
@@ -46,12 +63,20 @@ DATA(lv) = zcl_x=>get( )->run( iv = 1 ).
 
 (source_file
   (statement
-    (call name: (name) (name))
+    (access
+      name: (name)
+      (name))
     (operator)
-    (name) (operator)
-    (call name: (name))
-    (operator)
-    (call name: (name) (name) (operator) (number))))
+    (member_access
+      object: (member_access
+        object: (name)
+        member: (call
+          name: (name)))
+      member: (call
+        name: (name)
+        (name)
+        (operator)
+        (number)))))
 
 ==================
 Chained statement
@@ -63,7 +88,16 @@ DATA: a TYPE i,
 ---
 
 (source_file
-  (statement (name) (name) (name) (name) (name) (name) (name)))
+  (statement
+    (name)
+    (name)
+    (type_spec
+      (keyword)
+      (name))
+    (name)
+    (type_spec
+      (keyword)
+      (name))))
 
 ==================
 String template with quotes, escapes and embedded expressions
@@ -81,7 +115,11 @@ lv = |Say "hi" \{ { lv_name WIDTH = 5 } \n|.
       (template_content)
       (escape_sequence)
       (template_content)
-      (embedded_expression (name) (name) (operator) (number))
+      (embedded_expression
+        (name)
+        (name)
+        (operator)
+        (number))
       (template_content)
       (escape_sequence))))
 
@@ -96,7 +134,18 @@ lv = 'It''s' && `str` && lt[ 1 ].
 
 (source_file
   (statement
-    (name) (operator) (call name: (name)) (pragma))
+    (member_access
+      object: (name)
+      member: (call
+        name: (name)))
+    (pragma))
   (statement
-    (name) (operator) (string) (operator) (string) (operator) (name)
-    (bracketed (number))))
+    (name)
+    (operator)
+    (string)
+    (operator)
+    (string)
+    (operator)
+    (name)
+    (bracketed
+      (number))))

@@ -1,0 +1,223 @@
+==================
+TYPE, REF TO, TABLE OF, RANGE OF
+==================
+
+DATA: a TYPE i,
+      b TYPE REF TO zcl_x,
+      c TYPE STANDARD TABLE OF sflight WITH EMPTY KEY,
+      d TYPE RANGE OF s_date,
+      e TYPE TABLE OF REF TO zcl_y,
+      f TYPE zcl_x=>ty_t.
+
+---
+
+(source_file
+  (statement
+    (name)
+    (name)
+    (type_spec
+      (keyword)
+      type: (name))
+    (name)
+    (type_spec
+      (keyword)
+      (ref_type
+        (keyword)
+        (keyword)
+        type: (name)))
+    (name)
+    (type_spec
+      (keyword)
+      type: (name))
+    (table_type
+      (keyword)
+      (keyword)
+      type: (name))
+    (name)
+    (name)
+    (name)
+    (name)
+    (type_spec
+      (keyword)
+      (table_type
+        (keyword)
+        (keyword)
+        type: (name)))
+    (name)
+    (type_spec
+      (keyword)
+      (table_type
+        (keyword)
+        (keyword)
+        (ref_type
+          (keyword)
+          (keyword)
+          type: (name))))
+    (name)
+    (type_spec
+      (keyword)
+      type: (member_access
+        object: (name)
+        member: (name)))))
+
+==================
+Keyword spellings used as plain words
+==================
+
+SELECT type, text FROM ztab INTO TABLE @lt.
+APPEND LINES OF lt_src TO lt_dst.
+
+---
+
+(source_file
+  (statement
+    (name)
+    (type_spec
+      (keyword))
+    (name)
+    (name)
+    (name)
+    (name)
+    (table_type
+      (keyword))
+    (operator)
+    (name))
+  (statement
+    (name)
+    (name)
+    (keyword)
+    (name)
+    (keyword)
+    (name)))
+
+==================
+Calls versus offset/length and inline declarations
+==================
+
+lv = meth( ) + lines( lt ) + lv_date(4).
+DATA(x) = 1.
+MESSAGE e001(zmsg).
+METHODS m RETURNING VALUE(rv) TYPE i.
+
+---
+
+(source_file
+  (statement
+    (name)
+    (operator)
+    (call
+      name: (name))
+    (operator)
+    (call
+      name: (name)
+      (name))
+    (operator)
+    (access
+      name: (name)
+      (number)))
+  (statement
+    (access
+      name: (name)
+      (name))
+    (operator)
+    (number))
+  (statement
+    (name)
+    (access
+      name: (name)
+      (name)))
+  (statement
+    (name)
+    (name)
+    (name)
+    (access
+      name: (keyword)
+      (name))
+    (type_spec
+      (keyword)
+      type: (name))))
+
+==================
+Constructor expressions
+==================
+
+lo = NEW zcl_foo( ).
+lv = CONV string( lv_x ).
+lt = VALUE #( ( 1 ) ).
+CONSTANTS c TYPE i VALUE 100.
+
+---
+
+(source_file
+  (statement
+    (name)
+    (operator)
+    (constructor_expression
+      (keyword)
+      type: (call
+        name: (name))))
+  (statement
+    (name)
+    (operator)
+    (constructor_expression
+      (keyword)
+      type: (call
+        name: (name)
+        (name))))
+  (statement
+    (name)
+    (operator)
+    (keyword)
+    (operator)
+    (parenthesized
+      (parenthesized
+        (number))))
+  (statement
+    (name)
+    (name)
+    (type_spec
+      (keyword)
+      type: (name))
+    (keyword)
+    (number)))
+
+==================
+Member access
+==================
+
+zcl_x=>get( )->run( ).
+lv = lo->attr + me->mv.
+METHOD zif_repo~save.
+lr_data->* = 1.
+
+---
+
+(source_file
+  (statement
+    (member_access
+      object: (member_access
+        object: (name)
+        member: (call
+          name: (name)))
+      member: (call
+        name: (name))))
+  (statement
+    (name)
+    (operator)
+    (member_access
+      object: (name)
+      member: (name))
+    (operator)
+    (member_access
+      object: (name)
+      member: (name)))
+  (statement
+    (name)
+    (member_access
+      object: (name)
+      member: (name)))
+  (statement
+    (member_access
+      object: (name))
+    (operator)
+    (number)))
