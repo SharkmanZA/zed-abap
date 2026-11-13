@@ -13,5 +13,5 @@ repository = "https://github.com/SharkmanZA/zed-abap"
 # a file:// URL for offline work.
 [grammars.abap]
 repository = "https://github.com/SharkmanZA/zed-abap"
-rev = "99ec3069beabafbd604c811fbaeeea183ff04a4c"
+rev = "d1beb3bd63232416bc976146b580b6eb489d1d27"
 path = "grammar"

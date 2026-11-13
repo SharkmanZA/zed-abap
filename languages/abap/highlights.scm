@@ -144,29 +144,57 @@
   (#match? @_method "^(?i:method)$"))
 
 ; ---------------------------------------------------------------------------
-; Declarations at the start of a statement
+; Declarations
 ; ---------------------------------------------------------------------------
 
-; METHOD run. / METHODS run ... / FORM x. / PERFORM x. / CLASS-METHODS x ...
+; METHODS run ... / CLASS-METHODS x ... (declarations stay plain statements)
 (statement
   .
   (name) @_kw
   .
   [(name) (keyword)] @function.method
-  (#match? @_kw "^(?i:method|methods|class-methods|form|perform|function)$"))
+  (#match? @_kw "^(?i:methods|class-methods)$"))
 
-; METHOD zif_repo~save.
+; PERFORM x. (same colour as the FORM it calls)
 (statement
   .
   (name) @_kw
   .
-  (member_access member: (name) @function.method)
-  (#match? @_kw "^(?i:method|methods|class-methods)$"))
+  [(name) (keyword)] @function
+  (#match? @_kw "^(?i:perform)$"))
 
-; CLASS lcl_app ... / INTERFACE zif_x ...
+; INTERFACES zif_x.
 (statement
   .
   (name) @_kw
   .
   (name) @type
-  (#match? @_kw "^(?i:class|interface|interfaces)$"))
+  (#match? @_kw "^(?i:interfaces)$"))
+
+; Block openers: METHOD run. / METHOD zif_x~save.
+(method_block
+  open: (statement
+    .
+    (keyword)
+    .
+    [
+      (name) @function.method
+      (keyword) @function.method
+      (member_access member: (name) @function.method)
+    ]))
+
+; FORM x. / FUNCTION z_fm. / MODULE m OUTPUT.
+([
+  (form_block open: (statement . (keyword) . [(name) (keyword)] @function))
+  (function_block open: (statement . (keyword) . [(name) (keyword)] @function))
+  (module_block open: (statement . (keyword) . [(name) (keyword)] @function))
+])
+
+; CLASS lcl ... / INTERFACE zif ... (blocks and DEFERRED / LOAD declarations).
+; Anchored to the first two children: an unanchored child pattern on
+; `statement` would scan every token of long statements (5,000-line DATA:).
+(statement . (keyword) . name: (name) @type)
+
+; AMDP method body: SQLScript, shown as embedded code. (injections.scm hands
+; it to a SQL grammar when one is installed.)
+(sqlscript) @embedded

@@ -220,13 +220,15 @@ lr_data->* = 1.
     (member_access
       object: (name)
       member: (name)))
-  (statement
-    (name)
-    (member_access
-      object: (name)
-      member: (name)))
-  (statement
-    (member_access
-      object: (name))
-    (operator)
-    (number)))
+  (method_block
+    open: (statement
+      (keyword)
+      (member_access
+        object: (name)
+        member: (name)))
+    body: (body
+      (statement
+        (member_access
+          object: (name))
+        (operator)
+        (number)))))

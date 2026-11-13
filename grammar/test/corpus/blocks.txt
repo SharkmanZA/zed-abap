@@ -1,0 +1,750 @@
+==================
+IF / ELSEIF / ELSE / ENDIF
+==================
+
+IF a = 1.
+  x = 1.
+ELSEIF b IS INITIAL.
+  y = 2.
+ELSE.
+  z = 3.
+ENDIF.
+
+---
+
+(source_file
+  (if_block
+    (if_clause
+      (statement
+        (keyword)
+        (name)
+        (operator)
+        (number))
+      (body
+        (statement
+          (name)
+          (operator)
+          (number))))
+    (elseif_clause
+      (statement
+        (keyword)
+        (name)
+        (name)
+        (name))
+      (body
+        (statement
+          (name)
+          (operator)
+          (number))))
+    (else_clause
+      (statement
+        (keyword))
+      (body
+        (statement
+          (name)
+          (operator)
+          (number))))
+    (statement
+      (keyword))))
+
+==================
+Nested blocks close innermost first
+==================
+
+LOOP AT lt INTO ls.
+  IF ls-a = 1.
+    DO 3 TIMES.
+      WHILE x < 5.
+        x = x + 1.
+      ENDWHILE.
+    ENDDO.
+  ENDIF.
+ENDLOOP.
+
+---
+
+(source_file
+  (loop_block
+    (statement
+      (keyword)
+      (name)
+      (name)
+      (name)
+      (name))
+    (body
+      (if_block
+        (if_clause
+          (statement
+            (keyword)
+            (name)
+            (operator)
+            (number))
+          (body
+            (do_block
+              (statement
+                (keyword)
+                (number)
+                (name))
+              (body
+                (while_block
+                  (statement
+                    (keyword)
+                    (name)
+                    (operator)
+                    (number))
+                  (body
+                    (statement
+                      (name)
+                      (operator)
+                      (name)
+                      (operator)
+                      (number)))
+                  (statement
+                    (keyword))))
+              (statement
+                (keyword)))))
+        (statement
+          (keyword))))
+    (statement
+      (keyword))))
+
+==================
+CASE / WHEN and TRY / CATCH / CLEANUP
+==================
+
+CASE lv.
+  WHEN 1.
+    a = 1.
+  WHEN OTHERS.
+    a = 2.
+ENDCASE.
+TRY.
+    run( ).
+  CATCH cx_root INTO DATA(lx).
+    log( lx ).
+  CLEANUP.
+    close( ).
+ENDTRY.
+
+---
+
+(source_file
+  (case_block
+    (statement
+      (keyword)
+      (name))
+    (when_clause
+      (statement
+        (keyword)
+        (number))
+      (body
+        (statement
+          (name)
+          (operator)
+          (number))))
+    (when_clause
+      (statement
+        (keyword)
+        (name))
+      (body
+        (statement
+          (name)
+          (operator)
+          (number))))
+    (statement
+      (keyword)))
+  (try_block
+    (try_clause
+      (statement
+        (keyword))
+      (body
+        (statement
+          (call
+            (name)))))
+    (catch_clause
+      (statement
+        (keyword)
+        (name)
+        (name)
+        (access
+          (name)
+          (name)))
+      (body
+        (statement
+          (call
+            (name)
+            (name)))))
+    (cleanup_clause
+      (statement
+        (keyword))
+      (body
+        (statement
+          (call
+            (name)))))
+    (statement
+      (keyword))))
+
+==================
+Class definition with sections, implementation with methods
+==================
+
+CLASS lcl DEFINITION DEFERRED.
+CLASS lcl DEFINITION FINAL CREATE PUBLIC.
+  PUBLIC SECTION.
+    METHODS run.
+  PRIVATE SECTION.
+    DATA mv TYPE i.
+ENDCLASS.
+CLASS lcl IMPLEMENTATION.
+  METHOD run.
+    mv = 1.
+  ENDMETHOD.
+  METHOD zif_x~save.
+  ENDMETHOD.
+ENDCLASS.
+
+---
+
+(source_file
+  (statement
+    (keyword)
+    (name)
+    (keyword)
+    (keyword))
+  (class_definition
+    (statement
+      (keyword)
+      (name)
+      (keyword)
+      (name)
+      (name)
+      (name))
+    (section
+      (statement
+        (keyword)
+        (keyword))
+      (body
+        (statement
+          (name)
+          (name))))
+    (section
+      (statement
+        (keyword)
+        (keyword))
+      (body
+        (statement
+          (name)
+          (name)
+          (type_spec
+            (keyword)
+            (type_name
+              (name))))))
+    (statement
+      (keyword)))
+  (class_implementation
+    (statement
+      (keyword)
+      (name)
+      (keyword))
+    (body
+      (method_block
+        (statement
+          (keyword)
+          (name))
+        (body
+          (statement
+            (name)
+            (operator)
+            (number)))
+        (statement
+          (keyword)))
+      (method_block
+        (statement
+          (keyword)
+          (member_access
+            (name)
+            (name)))
+        (statement
+          (keyword))))
+    (statement
+      (keyword))))
+
+==================
+Interface, form, function, module
+==================
+
+INTERFACE zif_x DEFERRED.
+INTERFACE zif_x PUBLIC.
+  METHODS save.
+ENDINTERFACE.
+FORM f USING p.
+ENDFORM.
+FUNCTION z_fm.
+ENDFUNCTION.
+MODULE status_0100 OUTPUT.
+ENDMODULE.
+
+---
+
+(source_file
+  (statement
+    (keyword)
+    (name)
+    (keyword))
+  (interface_block
+    (statement
+      (keyword)
+      (name)
+      (name))
+    (body
+      (statement
+        (name)
+        (name)))
+    (statement
+      (keyword)))
+  (form_block
+    (statement
+      (keyword)
+      (name)
+      (name)
+      (name))
+    (statement
+      (keyword)))
+  (function_block
+    (statement
+      (keyword)
+      (name))
+    (statement
+      (keyword)))
+  (module_block
+    (statement
+      (keyword)
+      (name)
+      (name))
+    (statement
+      (keyword))))
+
+==================
+Block keywords mid-statement are plain names
+==================
+
+CALL METHOD lo->run.
+lv = COND #( WHEN a = 1 THEN 2 ELSE 3 ).
+lt = VALUE #( FOR i = 0 WHILE i < 3 ( i ) ).
+INCLUDE zinc IF FOUND.
+lo->method( ).
+
+---
+
+(source_file
+  (statement
+    (name)
+    (name)
+    (member_access
+      (name)
+      (name)))
+  (statement
+    (name)
+    (operator)
+    (keyword)
+    (operator)
+    (parenthesized
+      (name)
+      (name)
+      (operator)
+      (number)
+      (name)
+      (number)
+      (name)
+      (number)))
+  (statement
+    (name)
+    (operator)
+    (keyword)
+    (operator)
+    (parenthesized
+      (name)
+      (name)
+      (operator)
+      (number)
+      (name)
+      (name)
+      (operator)
+      (number)
+      (parenthesized
+        (name))))
+  (statement
+    (name)
+    (name)
+    (name)
+    (name))
+  (statement
+    (member_access
+      (name)
+      (call
+        (name)))))
+
+==================
+Stray END statements and CamelCase keywords
+==================
+
+ENDIF.
+If a = 1.
+  x = 1.
+EndIf.
+WHEN 1.
+
+---
+
+(source_file
+  (statement
+    (name))
+  (if_block
+    (if_clause
+      (statement
+        (keyword)
+        (name)
+        (operator)
+        (number))
+      (body
+        (statement
+          (name)
+          (operator)
+          (number))))
+    (statement
+      (keyword)))
+  (statement
+    (name)
+    (number)))
+
+==================
+Unclosed IF extends to the enclosing END
+==================
+
+METHOD m.
+  IF a = 1.
+    x = 1.
+ENDMETHOD.
+
+---
+
+(source_file
+  (method_block
+    (statement
+      (keyword)
+      (name))
+    (body
+      (if_block
+        (if_clause
+          (statement
+            (keyword)
+            (name)
+            (operator)
+            (number))
+          (body
+            (statement
+              (name)
+              (operator)
+              (number))))
+        (statement
+          (keyword))))))
+
+==================
+Stray clause keyword attaches to the innermost block
+==================
+
+CLASS lcl IMPLEMENTATION.
+  METHOD run.
+    LOOP AT lt INTO ls.
+      x = 1.
+    ELSE.
+    ENDLOOP.
+  ENDMETHOD.
+  METHOD other.
+  ENDMETHOD.
+ENDCLASS.
+
+---
+
+(source_file
+  (class_implementation
+    (statement
+      (keyword)
+      (name)
+      (keyword))
+    (body
+      (method_block
+        (statement
+          (keyword)
+          (name))
+        (body
+          (loop_block
+            (statement
+              (keyword)
+              (name)
+              (name)
+              (name)
+              (name))
+            (body
+              (statement
+                (name)
+                (operator)
+                (number)))
+            (else_clause
+              (statement
+                (keyword)))
+            (statement
+              (keyword))))
+        (statement
+          (keyword)))
+      (method_block
+        (statement
+          (keyword)
+          (name))
+        (statement
+          (keyword))))
+    (statement
+      (keyword))))
+
+==================
+CATCH SYSTEM-EXCEPTIONS is its own block
+==================
+
+FORM run.
+  IF a = 1.
+    CATCH SYSTEM-EXCEPTIONS arithmetic_errors = 4.
+      x = 1 / 0.
+    ENDCATCH.
+  ENDIF.
+ENDFORM.
+
+---
+
+(source_file
+  (form_block
+    (statement
+      (keyword)
+      (name))
+    (body
+      (if_block
+        (if_clause
+          (statement
+            (keyword)
+            (name)
+            (operator)
+            (number))
+          (body
+            (catch_system_exceptions_block
+              (statement
+                (keyword)
+                (name)
+                (operator)
+                (number))
+              (body
+                (statement
+                  (name)
+                  (operator)
+                  (number)
+                  (operator)
+                  (number)))
+              (statement
+                (keyword)))))
+        (statement
+          (keyword))))
+    (statement
+      (keyword))))
+
+==================
+AMDP method body is raw SQLScript
+==================
+
+CLASS zcl IMPLEMENTATION.
+  METHOD get BY DATABASE PROCEDURE FOR HDB LANGUAGE SQLSCRIPT USING ztab.
+    et = SELECT id FROM ztab WHERE id = :iv_id;
+    -- If none found. return
+  ENDMETHOD.
+  METHOD other.
+  ENDMETHOD.
+ENDCLASS.
+
+---
+
+(source_file
+  (class_implementation
+    (statement
+      (keyword)
+      (name)
+      (keyword))
+    (body
+      (method_block
+        (statement
+          (keyword)
+          (name)
+          (keyword)
+          (name)
+          (name)
+          (name)
+          (name)
+          (name)
+          (name)
+          (name)
+          (name))
+        (sqlscript)
+        (statement
+          (keyword)))
+      (method_block
+        (statement
+          (keyword)
+          (name))
+        (statement
+          (keyword))))
+    (statement
+      (keyword))))
+
+==================
+Variables and methods named like block keywords
+==================
+
+METHOD run.
+  DATA method TYPE string.
+  method = 'GET'.
+  form->run( ).
+  interface = 'X'.
+  do( ).
+  lo->if( ).
+ENDMETHOD.
+
+---
+
+(source_file
+  (method_block
+    (statement
+      (keyword)
+      (name))
+    (body
+      (statement
+        (name)
+        (name)
+        (type_spec
+          (keyword)
+          (type_name
+            (name))))
+      (statement
+        (name)
+        (operator)
+        (string))
+      (statement
+        (name)
+        (operator)
+        (call
+          (name)))
+      (statement
+        (name)
+        (operator)
+        (string))
+      (statement
+        (call
+          (name)))
+      (statement
+        (member_access
+          (name)
+          (call
+            (name)))))
+    (statement
+      (keyword))))
+
+==================
+Operators after a block keyword
+==================
+
+IF a = 1.
+ELSEIF !act IS BOUND.
+ENDIF.
+
+---
+
+(source_file
+  (if_block
+    (if_clause
+      (statement
+        (keyword)
+        (name)
+        (operator)
+        (number)))
+    (elseif_clause
+      (statement
+        (keyword)
+        (operator)
+        (name)
+        (name)
+        (name)))
+    (statement
+      (keyword))))
+
+==================
+Comments between a clause and its closer
+==================
+
+IF a = 1.
+  x = 1.
+* old code
+  " more
+ENDIF.
+
+---
+
+(source_file
+  (if_block
+    (if_clause
+      (statement
+        (keyword)
+        (name)
+        (operator)
+        (number))
+      (body
+        (statement
+          (name)
+          (operator)
+          (number))))
+    (comment)
+    (comment)
+    (statement
+      (keyword))))
+
+==================
+More forward declarations
+==================
+
+CLASS lcl DEFINITION LOCAL FRIENDS ltc.
+INTERFACE zif LOAD.
+CLASS zbp_x DEFINITION PUBLIC ABSTRACT FINAL FOR BEHAVIOR OF zi_x.
+ENDCLASS.
+
+---
+
+(source_file
+  (statement
+    (keyword)
+    (name)
+    (keyword)
+    (keyword)
+    (name)
+    (name))
+  (statement
+    (keyword)
+    (name)
+    (keyword))
+  (class_definition
+    (statement
+      (keyword)
+      (name)
+      (keyword)
+      (name)
+      (name)
+      (name)
+      (name)
+      (name)
+      (keyword)
+      (name))
+    (statement
+      (keyword))))
