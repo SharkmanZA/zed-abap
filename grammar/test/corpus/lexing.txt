@@ -43,15 +43,17 @@ IF sy-subrc = 0 AND <ls>-field IS INITIAL.
 ---
 
 (source_file
-  (statement
-    (name)
-    (name)
-    (operator)
-    (number)
-    (name)
-    (field_symbol)
-    (name)
-    (name)))
+  (if_block
+    (if_clause
+      (statement
+        (keyword)
+        (name)
+        (operator)
+        (number)
+        (name)
+        (field_symbol)
+        (name)
+        (name)))))
 
 ==================
 Calls, method chains and inline declarations
