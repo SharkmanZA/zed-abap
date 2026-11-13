@@ -90,6 +90,72 @@
     }
   },
   {
+    "type": "at_block",
+    "named": true,
+    "fields": {
+      "body": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "body",
+            "named": true
+          }
+        ]
+      },
+      "close": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "statement",
+            "named": true
+          }
+        ]
+      },
+      "open": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "statement",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "catch_clause",
+          "named": true
+        },
+        {
+          "type": "cleanup_clause",
+          "named": true
+        },
+        {
+          "type": "else_clause",
+          "named": true
+        },
+        {
+          "type": "elseif_clause",
+          "named": true
+        },
+        {
+          "type": "section",
+          "named": true
+        },
+        {
+          "type": "when_clause",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "body",
     "named": true,
     "fields": {},
@@ -97,6 +163,10 @@
       "multiple": true,
       "required": true,
       "types": [
+        {
+          "type": "at_block",
+          "named": true
+        },
         {
           "type": "case_block",
           "named": true
@@ -143,6 +213,10 @@
         },
         {
           "type": "module_block",
+          "named": true
+        },
+        {
+          "type": "select_block",
           "named": true
         },
         {
@@ -869,6 +943,32 @@
     }
   },
   {
+    "type": "event_block",
+    "named": true,
+    "fields": {
+      "body": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "body",
+            "named": true
+          }
+        ]
+      },
+      "open": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "statement",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "form_block",
     "named": true,
     "fields": {
@@ -1566,6 +1666,72 @@
     }
   },
   {
+    "type": "select_block",
+    "named": true,
+    "fields": {
+      "body": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "body",
+            "named": true
+          }
+        ]
+      },
+      "close": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "statement",
+            "named": true
+          }
+        ]
+      },
+      "open": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "statement",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "catch_clause",
+          "named": true
+        },
+        {
+          "type": "cleanup_clause",
+          "named": true
+        },
+        {
+          "type": "else_clause",
+          "named": true
+        },
+        {
+          "type": "elseif_clause",
+          "named": true
+        },
+        {
+          "type": "section",
+          "named": true
+        },
+        {
+          "type": "when_clause",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "source_file",
     "named": true,
     "root": true,
@@ -1574,6 +1740,10 @@
       "multiple": true,
       "required": false,
       "types": [
+        {
+          "type": "at_block",
+          "named": true
+        },
         {
           "type": "case_block",
           "named": true
@@ -1592,6 +1762,10 @@
         },
         {
           "type": "do_block",
+          "named": true
+        },
+        {
+          "type": "event_block",
           "named": true
         },
         {
@@ -1620,6 +1794,10 @@
         },
         {
           "type": "module_block",
+          "named": true
+        },
+        {
+          "type": "select_block",
           "named": true
         },
         {
@@ -2034,6 +2212,14 @@
     "named": false
   },
   {
+    "type": "AT",
+    "named": false
+  },
+  {
+    "type": "At",
+    "named": false
+  },
+  {
     "type": "BY",
     "named": false
   },
@@ -2142,6 +2328,10 @@
     "named": false
   },
   {
+    "type": "ENDAT",
+    "named": false
+  },
+  {
     "type": "ENDCASE",
     "named": false
   },
@@ -2186,6 +2376,10 @@
     "named": false
   },
   {
+    "type": "ENDSELECT",
+    "named": false
+  },
+  {
     "type": "ENDTRY",
     "named": false
   },
@@ -2207,6 +2401,10 @@
   },
   {
     "type": "Elseif",
+    "named": false
+  },
+  {
+    "type": "EndAt",
     "named": false
   },
   {
@@ -2254,11 +2452,19 @@
     "named": false
   },
   {
+    "type": "EndSelect",
+    "named": false
+  },
+  {
     "type": "EndTry",
     "named": false
   },
   {
     "type": "EndWhile",
+    "named": false
+  },
+  {
+    "type": "Endat",
     "named": false
   },
   {
@@ -2303,6 +2509,10 @@
   },
   {
     "type": "Endmodule",
+    "named": false
+  },
+  {
+    "type": "Endselect",
     "named": false
   },
   {
@@ -2558,6 +2768,10 @@
     "named": false
   },
   {
+    "type": "at",
+    "named": false
+  },
+  {
     "type": "by",
     "named": false
   },
@@ -2619,6 +2833,10 @@
     "named": false
   },
   {
+    "type": "endat",
+    "named": false
+  },
+  {
     "type": "endcase",
     "named": false
   },
@@ -2660,6 +2878,10 @@
   },
   {
     "type": "endmodule",
+    "named": false
+  },
+  {
+    "type": "endselect",
     "named": false
   },
   {
