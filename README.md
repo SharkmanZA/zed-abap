@@ -20,7 +20,7 @@ zed-abap/
 │   ├── brackets.scm
 │   └── overrides.scm       # string/comment scopes for bracket auto-closing
 ├── icon_themes/abap.json   # "Zed (Default) + ABAP" icon theme
-├── icons/                  # its SVGs
+├── icons/abap.svg          # its icon
 ├── grammar/                # tree-sitter-abap
 │   ├── grammar.js
 │   ├── src/scanner.c       # column-0 `*` comments, `meth( ` call parens, AMDP bodies,
@@ -40,25 +40,17 @@ Zed checks out the grammar at the `rev` in `extension.toml` and compiles it to W
 
 ## File icons
 
-The extension also ships an icon theme, **Zed (Default) + ABAP**. It is Zed's default icon theme plus icons for ABAP files. Turn it on with **`icon theme selector: toggle`**, or in `settings.json`:
+The extension also ships an icon theme, **Zed (Default) + ABAP**. It is Zed's default icon theme plus an icon for ABAP files. Turn it on with **`icon theme selector: toggle`**, or in `settings.json`:
 
 ```json
 "icon_theme": "Zed (Default) + ABAP"
 ```
 
-If your `icon_theme` setting follows the system appearance (`{ "mode": "system", "light": …, "dark": … }`), the selector only fills the slot for the current mode, so set both `light` and `dark` to `"Zed (Default) + ABAP"`. The icons are drawn to read on light and dark backgrounds.
+If your `icon_theme` setting follows the system appearance (`{ "mode": "system", "light": …, "dark": … }`), the selector only fills the slot for the current mode, so set both `light` and `dark` to `"Zed (Default) + ABAP"`. The icon is drawn to read on light and dark backgrounds.
 
 If the theme isn't listed, run **`zed: rebuild dev extension`**: Zed registers icon themes when it builds the extension, and the same applies after changing `icon_themes/` or `icons/`.
 
-| File | Icon |
-| --- | --- |
-| `*.clas.abap`, `*.clas.locals_def.abap`, `*.clas.locals_imp.abap`, `*.clas.macros.abap` | blue **C.** |
-| `*.clas.testclasses.abap` | green **T.** |
-| `*.intf.abap` | blue **I.** |
-| `*.prog.abap` (programs and includes) | blue **P.** |
-| any other `*.abap` (function groups, enhancements, …) | blue **A.** |
-
-The names follow abapGit's file naming, in lower or UPPER case. Zed matches the end of the file name, so a function group member that happens to be called `INTF` or `PROG` (`zfg.fugr.intf.abap`) gets the interface or program icon. Zed shows one icon theme at a time, so choosing this one replaces any other icon theme you use. Every non-ABAP file keeps Zed's default icon: Zed merges its default file associations into extension icon themes and falls back to its default icons for anything the theme doesn't draw.
+Every `.abap` file (in lower or UPPER case) gets a blue **A.** tile, `icons/abap.svg`. Zed shows one icon theme at a time, so choosing this one replaces any other icon theme you use. Every non-ABAP file keeps Zed's default icon: Zed merges its default file associations into extension icon themes and falls back to its default icons for anything the theme doesn't draw.
 
 ## Working on the grammar
 
