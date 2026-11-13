@@ -2,6 +2,10 @@
 
 ABAP language support for [Zed](https://zed.dev): syntax highlighting, a nested outline / symbol search, auto-indent, code folding, bracket matching, comment toggling, Vim text objects and an optional file icon theme.
 
+<!-- Screenshot: uncomment once docs/images/highlighting.png exists (see docs/images/README.md).
+<img src="docs/images/highlighting.png" alt="examples/sample.abap open in Zed with ABAP syntax highlighting" width="800">
+-->
+
 > [!NOTE]
 > **This project is "vibe coded".** The grammar, scanner, queries, scripts and docs were written by [Claude Code](https://claude.com/claude-code) (Anthropic's AI coding agent) from plain-language direction, not by hand.
 > It was also **reviewed entirely by Claude**: multi-agent Claude code reviews of every change, with the findings fixed. Testing was a tree-sitter test corpus, real SAP standard code, a benchmark of Zed's highlighting path, and a port of Zed's auto-indent algorithm run against SAP's own formatting.
@@ -26,7 +30,10 @@ zed-abap/
 │   ├── src/scanner.c       # column-0 `*` comments, `meth( ` call parens, AMDP bodies,
 │   │                       # CATCH SYSTEM-EXCEPTIONS
 │   └── test/corpus/
-├── examples/sample.abap    # highlighting showcase (not meant to compile)
+├── examples/
+│   ├── sample.abap         # highlighting showcase (not meant to compile)
+│   └── icons-demo/         # dummy abapGit package for the README screenshots
+├── docs/images/            # README screenshots
 └── scripts/bump-grammar.sh
 ```
 
@@ -49,6 +56,10 @@ The extension also ships an icon theme, **Zed (Default) + ABAP**. It is Zed's de
 If your `icon_theme` setting follows the system appearance (`{ "mode": "system", "light": …, "dark": … }`), the selector only fills the slot for the current mode, so set both `light` and `dark` to `"Zed (Default) + ABAP"`. The icon is drawn to read on light and dark backgrounds.
 
 If the theme isn't listed, run **`zed: rebuild dev extension`**: Zed registers icon themes when it builds the extension, and the same applies after changing `icon_themes/` or `icons/`.
+
+<!-- Screenshot: uncomment once docs/images/file-icons.png exists (see docs/images/README.md).
+<img src="docs/images/file-icons.png" alt="Zed project panel with the ABAP icon on .abap files" width="400">
+-->
 
 Every `.abap` file (in lower or UPPER case) gets a blue **A.** tile, `icons/abap.svg`. Zed shows one icon theme at a time, so choosing this one replaces any other icon theme you use. Every non-ABAP file keeps Zed's default icon: Zed merges its default file associations into extension icon themes and falls back to its default icons for anything the theme doesn't draw.
 
@@ -92,6 +103,14 @@ Otherwise `zed: rebuild dev extension` fails with "grammar directory … already
 ## Block structure
 
 The grammar parses ABAP's statement blocks, which drive the nested outline, auto-indent and text objects:
+
+<!-- Screenshot: uncomment once docs/images/outline.png exists (see docs/images/README.md).
+<img src="docs/images/outline.png" alt="Zed outline panel listing methods nested under their class" width="500">
+-->
+
+<!-- Screenshot: uncomment once docs/images/auto-indent.gif exists (see docs/images/README.md).
+<img src="docs/images/auto-indent.gif" alt="Typing IF, ELSE and ENDIF in Zed with automatic indentation" width="600">
+-->
 
 | Block | Clauses |
 | --- | --- |
