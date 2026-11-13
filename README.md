@@ -1,6 +1,6 @@
 # zed-abap
 
-ABAP language support for [Zed](https://zed.dev): syntax highlighting, a nested outline / symbol search, auto-indent, code folding, bracket matching, comment toggling and Vim text objects.
+ABAP language support for [Zed](https://zed.dev): syntax highlighting, a nested outline / symbol search, auto-indent, code folding, bracket matching, comment toggling, Vim text objects and an optional file icon theme.
 
 > [!NOTE]
 > **This project is "vibe coded".** The grammar, scanner, queries, scripts and docs were written by [Claude Code](https://claude.com/claude-code) (Anthropic's AI coding agent) from plain-language direction, not by hand.
@@ -19,6 +19,8 @@ zed-abap/
 │   ├── injections.scm      # SQLScript in AMDP methods → SQL highlighting (if installed)
 │   ├── brackets.scm
 │   └── overrides.scm       # string/comment scopes for bracket auto-closing
+├── icon_themes/abap.json   # "Zed (Default) + ABAP" icon theme
+├── icons/                  # its SVGs
 ├── grammar/                # tree-sitter-abap
 │   ├── grammar.js
 │   ├── src/scanner.c       # column-0 `*` comments, `meth( ` call parens, AMDP bodies,
@@ -35,6 +37,28 @@ zed-abap/
 3. Open `examples/sample.abap`.
 
 Zed checks out the grammar at the `rev` in `extension.toml` and compiles it to WASM into `grammars/` (git-ignored). Check **`zed: open log`** if anything fails.
+
+## File icons
+
+The extension also ships an icon theme, **Zed (Default) + ABAP**. It is Zed's default icon theme plus icons for ABAP files. Turn it on with **`icon theme selector: toggle`**, or in `settings.json`:
+
+```json
+"icon_theme": "Zed (Default) + ABAP"
+```
+
+If your `icon_theme` setting follows the system appearance (`{ "mode": "system", "light": …, "dark": … }`), the selector only fills the slot for the current mode, so set both `light` and `dark` to `"Zed (Default) + ABAP"`. The icons are drawn to read on light and dark backgrounds.
+
+If the theme isn't listed, run **`zed: rebuild dev extension`**: Zed registers icon themes when it builds the extension, and the same applies after changing `icon_themes/` or `icons/`.
+
+| File | Icon |
+| --- | --- |
+| `*.clas.abap`, `*.clas.locals_def.abap`, `*.clas.locals_imp.abap`, `*.clas.macros.abap` | blue **C.** |
+| `*.clas.testclasses.abap` | green **T.** |
+| `*.intf.abap` | blue **I.** |
+| `*.prog.abap` (programs and includes) | blue **P.** |
+| any other `*.abap` (function groups, enhancements, …) | blue **A.** |
+
+The names follow abapGit's file naming, in lower or UPPER case. Zed matches the end of the file name, so a function group member that happens to be called `INTF` or `PROG` (`zfg.fugr.intf.abap`) gets the interface or program icon. Zed shows one icon theme at a time, so choosing this one replaces any other icon theme you use. Every non-ABAP file keeps Zed's default icon: Zed merges its default file associations into extension icon themes and falls back to its default icons for anything the theme doesn't draw.
 
 ## Working on the grammar
 
@@ -57,7 +81,7 @@ The script regenerates the parser, runs the corpus tests, and checks that every 
 
 Zed fetches that commit from GitHub, so **`git push`** before running **`zed: rebuild dev extension`**.
 
-Query (`.scm`) and `config.toml` changes only need the rebuild, plus a normal commit.
+Query (`.scm`), `config.toml`, icon theme and icon changes only need the rebuild, plus a normal commit.
 
 ## Grammar source: GitHub vs local path
 

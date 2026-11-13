@@ -1,0 +1,36 @@
+{
+  "$schema": "https://zed.dev/schema/icon_themes/v0.3.0.json",
+  "name": "Zed (Default) + ABAP",
+  "author": "Jake Mileham",
+  "themes": [
+    {
+      "name": "Zed (Default) + ABAP",
+      "appearance": "dark",
+      "file_suffixes": {
+        "abap": "abap",
+        "clas.abap": "abap_class",
+        "clas.locals_def.abap": "abap_class",
+        "clas.locals_imp.abap": "abap_class",
+        "clas.macros.abap": "abap_class",
+        "clas.testclasses.abap": "abap_test",
+        "intf.abap": "abap_interface",
+        "prog.abap": "abap_program",
+        "ABAP": "abap",
+        "CLAS.ABAP": "abap_class",
+        "CLAS.LOCALS_DEF.ABAP": "abap_class",
+        "CLAS.LOCALS_IMP.ABAP": "abap_class",
+        "CLAS.MACROS.ABAP": "abap_class",
+        "CLAS.TESTCLASSES.ABAP": "abap_test",
+        "INTF.ABAP": "abap_interface",
+        "PROG.ABAP": "abap_program"
+      },
+      "file_icons": {
+        "abap": { "path": "./icons/abap.svg" },
+        "abap_class": { "path": "./icons/abap-class.svg" },
+        "abap_interface": { "path": "./icons/abap-interface.svg" },
+        "abap_program": { "path": "./icons/abap-program.svg" },
+        "abap_test": { "path": "./icons/abap-test.svg" }
+      }
+    }
+  ]
+}
