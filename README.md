@@ -1,5 +1,7 @@
 # zed-abap
 
+[![CI](https://github.com/SharkmanZA/zed-abap/actions/workflows/ci.yml/badge.svg)](https://github.com/SharkmanZA/zed-abap/actions/workflows/ci.yml)
+
 ABAP language support for [Zed](https://zed.dev): syntax highlighting, a nested outline / symbol search, auto-indent, code folding, bracket matching, comment toggling, Vim text objects and an optional file icon theme.
 
 <p align="center"><img src="docs/images/highlighting.png" alt="examples/sample.abap open in Zed with ABAP syntax highlighting" width="700"></p>
@@ -32,6 +34,7 @@ zed-abap/
 │   ├── sample.abap         # highlighting showcase (not meant to compile)
 │   └── icons-demo/         # dummy abapGit package for the README screenshots
 ├── docs/images/            # README screenshots
+├── .github/workflows/ci.yml # checks for pull requests (see Continuous integration)
 └── scripts/bump-grammar.sh
 ```
 
@@ -81,6 +84,15 @@ The script regenerates the parser, runs the corpus tests, and checks that every 
 Zed fetches that commit from GitHub, so **`git push`** before running **`zed: rebuild dev extension`**.
 
 Query (`.scm`), `config.toml`, icon theme and icon changes only need the rebuild, plus a normal commit.
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every pull request into `main` and every push to `main`:
+
+- `grammar/src` is regenerated and must match what's committed, and the corpus tests must pass.
+- Every `languages/abap/*.scm` query must compile, the examples must parse without errors, and the scanner must compile without warnings.
+- `extension.toml`'s `rev` must be in the branch's history and its `grammar/` must match the current one. A forgotten `scripts/bump-grammar.sh`, or a squash / rebase merge of a grammar change, fails here.
+- `extension.toml`, `config.toml` and the icon theme must be valid, and every icon the theme names must exist.
 
 ## Grammar source: GitHub vs local path
 

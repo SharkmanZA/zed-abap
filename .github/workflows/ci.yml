@@ -1,0 +1,144 @@
+# Checks for every pull request into main and every push to main.
+# The same steps can be run locally: scripts/bump-grammar.sh covers the first
+# four for grammar changes.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  grammar:
+    name: Grammar and queries
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: grammar
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: the `rev` check needs the commit extension.toml names.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: grammar/package-lock.json
+
+      - name: Install tree-sitter CLI
+        run: npm ci
+
+      - name: Generated parser is up to date
+        run: |
+          npx tree-sitter generate
+          if ! git diff --quiet -- src; then
+            echo "::error file=grammar/grammar.js::grammar/src is out of date. Run 'npx tree-sitter generate' in grammar/ (or scripts/bump-grammar.sh) and commit the result."
+            git diff --stat -- src
+            exit 1
+          fi
+
+      - name: Corpus tests
+        run: npx tree-sitter test
+
+      - name: Zed queries compile
+        # tree-sitter test doesn't load these, and in Zed a single invalid
+        # query stops the whole language from loading.
+        run: |
+          status=0
+          for query in ../languages/abap/*.scm; do
+            if ! npx tree-sitter query --quiet "$query" ../examples/sample.abap > /dev/null; then
+              echo "::error file=languages/abap/$(basename "$query")::Query does not compile against the grammar."
+              status=1
+            fi
+          done
+          exit $status
+
+      - name: Examples parse without errors
+        run: npx tree-sitter parse --quiet ../examples/*.abap ../examples/icons-demo/src/*.abap
+
+      - name: Scanner compiles cleanly
+        run: cc -std=c11 -Wall -Wextra -Wno-unused-parameter -Werror -Isrc -c src/scanner.c -o /dev/null
+
+      - name: extension.toml rev matches the grammar
+        # Zed builds the grammar from exactly this commit, fetched from GitHub.
+        run: |
+          rev="$(sed -nE 's/^rev = "([0-9a-f]{40})"$/\1/p' ../extension.toml)"
+          if [ -z "$rev" ]; then
+            echo "::error file=extension.toml::No 40-character rev found under [grammars.abap]."
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$rev" HEAD 2> /dev/null; then
+            echo "::error file=extension.toml::rev $rev is not in this branch's history. Zed couldn't fetch it once its branch is gone (squash or rebase merges rewrite it). Run scripts/bump-grammar.sh."
+            exit 1
+          fi
+          if ! git diff --quiet "$rev" HEAD -- .; then
+            echo "::error file=extension.toml::grammar/ has changed since rev ${rev:0:7}. Run scripts/bump-grammar.sh so Zed builds the current grammar."
+            git diff --stat "$rev" HEAD -- .
+            exit 1
+          fi
+          echo "rev ${rev:0:7} matches grammar/."
+
+  extension:
+    name: Extension files
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Manifest, language config and icon theme are valid
+        shell: python3 {0}
+        run: |
+          import json, os, re, sys, tomllib
+          import xml.etree.ElementTree as ET
+
+          errors = []
+
+          def check(cond, msg):
+              if not cond:
+                  errors.append(msg)
+
+          manifest = tomllib.load(open("extension.toml", "rb"))
+          for key in ("id", "name", "version", "schema_version"):
+              check(key in manifest, f"extension.toml: missing '{key}'")
+          check("abap" in manifest.get("grammars", {}), "extension.toml: missing [grammars.abap]")
+
+          config = tomllib.load(open("languages/abap/config.toml", "rb"))
+          check(config.get("grammar") == "abap", "config.toml: grammar must be 'abap'")
+          for key in ("increase_indent_pattern", "decrease_indent_pattern"):
+              try:
+                  re.compile(config[key])
+              except (KeyError, re.error) as e:
+                  errors.append(f"config.toml: {key}: {e}")
+
+          for name in sorted(os.listdir("icon_themes")):
+              path = f"icon_themes/{name}"
+              family = json.load(open(path))
+              for theme in family["themes"]:
+                  icons = theme.get("file_icons", {})
+                  for suffix, key in theme.get("file_suffixes", {}).items():
+                      check(key in icons, f"{path}: suffix '{suffix}' maps to undefined icon '{key}'")
+                  for key, icon in icons.items():
+                      svg = os.path.normpath(icon["path"])
+                      if not os.path.isfile(svg):
+                          errors.append(f"{path}: icon '{key}' file {svg} not found")
+                          continue
+                      try:
+                          ET.parse(svg)
+                      except ET.ParseError as e:
+                          errors.append(f"{svg}: not valid XML: {e}")
+
+          for e in errors:
+              print(f"::error::{e}")
+          sys.exit(1 if errors else 0)
