@@ -1,6 +1,6 @@
 # README screenshots
 
-The main README references these files in commented-out `<img>` tags. Uncomment each tag once its image is here.
+The main README shows these images. `auto-indent.gif` is still optional: its `<img>` tag is commented out until the file exists.
 
 Use only code from this repo's `examples/` folder, never real customer or product code: the repo is public.
 
@@ -12,5 +12,5 @@ Use only code from this repo's `examples/` folder, never real customer or produc
 | `auto-indent.gif` (optional) | In a new `.abap` buffer: type `IF lv_x > 0.` Enter, a statement, Enter, `ELSE.`, …, `ENDIF.` | Kap or CleanShot, ≤ 10 s, ≤ 2 MB |
 
 Tips:
-- Save PNGs at 2× (Retina) and keep each under ~500 KB (`pngquant` or ImageOptim help).
+- Crop to the Zed window (no macOS menu bar) and keep each PNG under ~500 KB (`sips --resampleWidth 1400 file.png`).
 - Use the same Zed theme and font size for every shot.
