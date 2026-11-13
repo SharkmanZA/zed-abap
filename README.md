@@ -26,7 +26,7 @@ zed-abap/
 ├── grammar/                # tree-sitter-abap
 │   ├── grammar.js
 │   ├── src/scanner.c       # column-0 `*` comments, `meth( ` call parens, AMDP bodies,
-│   │                       # CATCH SYSTEM-EXCEPTIONS
+│   │                       # CATCH SYSTEM-EXCEPTIONS, SELECT loops, AT events, event ends
 │   └── test/corpus/
 ├── examples/
 │   ├── sample.abap         # highlighting showcase (not meant to compile)
@@ -112,17 +112,24 @@ The grammar parses ABAP's statement blocks, which drive the nested outline, auto
 | `CASE` … `ENDCASE` | `WHEN` |
 | `TRY` … `ENDTRY` | `CATCH`, `CLEANUP` |
 | `LOOP`, `DO`, `WHILE` | |
+| `SELECT` … `ENDSELECT` (loops only, see below) | |
+| `AT FIRST` / `AT LAST` / `AT NEW` / `AT END OF` … `ENDAT` | |
 | `METHOD`, `FORM`, `FUNCTION`, `MODULE` | |
 | `CLASS … DEFINITION` … `ENDCLASS` | `PUBLIC` / `PROTECTED` / `PRIVATE SECTION` |
 | `CLASS … IMPLEMENTATION`, `INTERFACE` | |
 | `CATCH SYSTEM-EXCEPTIONS` … `ENDCATCH` | |
+| Events: `LOAD-OF-PROGRAM`, `INITIALIZATION`, `AT SELECTION-SCREEN …`, `START-OF-SELECTION`, `END-OF-SELECTION`, `TOP-OF-PAGE`, `END-OF-PAGE`, `AT LINE-SELECTION`, `AT USER-COMMAND`, `AT PFnn` | (no closing statement) |
 
 AMDP methods (`METHOD m BY DATABASE PROCEDURE …`) are blocks whose body is kept as raw SQLScript (its statements end in `;`, not `.`).
 
+**SELECT loops.** Only a SELECT that needs `ENDSELECT` opens a block. The scanner reads the whole statement to decide: a SELECT is a loop unless it is `SELECT SINGLE`, writes `INTO` / `APPENDING [CORRESPONDING FIELDS OF] TABLE` (without `PACKAGE SIZE`), selects only aggregates without `GROUP BY` (`COUNT(*)`, `COALESCE( MAX( a ), 0 )`, `SUM( a ) + SUM( b )`: one row), or is native SQL inside `EXEC SQL`. Strings, templates and comments in the statement are ignored.
+
+**Event blocks** have no closing statement: each one runs until the next event, `FORM`, `CLASS`, `INTERFACE`, `MODULE`, `FUNCTION` or `METHOD`, or the end of the file. They appear in the outline, and `]m` / `af` / `if` work on them like on FORMs. Event keywords are recognised in any casing, but only when a period follows (`START-OF-SELECTION.`), so a method or variable called `initialization` is unaffected. Logical-database `GET node` events aren't recognised (they can't be told from `GET TIME`, `GET REFERENCE`, … cheaply). While typing, a `FORM` below an unclosed `IF` or `LOOP` in an event is taken as part of that block until you close it, like an `ENDMETHOD` below an unclosed `IF`.
+
 - **Folding.** Zed folds by indentation, so blocks fold as long as they're indented, and auto-indent keeps new code indented.
-- **Auto-indent.** Statements inside a block are indented one level (2 spaces). `ELSE`, `WHEN`, `CATCH`, `… SECTION` and every `END…` line up with the statement that opened them as you type them, including after empty clauses and after commented-out `*` lines. Pressing Enter after an opening statement (`IF x.`) or at the end of a clause body keeps you at the body's indentation. Event blocks (`START-OF-SELECTION.`, `AT SELECTION-SCREEN …`) indent their statements, and the next event, `FORM` or `CLASS` goes back to column 0. Measured against SAP's own formatting of standard code, the suggested indent matches on 91–100% of statement lines per file (excluding continuation lines of multi-line statements).
+- **Auto-indent.** Statements inside a block are indented one level (2 spaces). `ELSE`, `WHEN`, `CATCH`, `… SECTION` and every `END…` line up with the statement that opened them as you type them, including after empty clauses and after commented-out `*` lines. Pressing Enter after an opening statement (`IF x.`) or at the end of a clause body keeps you at the body's indentation. Event blocks (`START-OF-SELECTION.`, `AT SELECTION-SCREEN …`) indent their statements, and the next event, `FORM` or `CLASS` goes back to column 0. In the last event of a file, new lines keep the indentation of the line above. Measured against SAP's own formatting of standard code, the suggested indent matches on 91–100% of statement lines per file (excluding continuation lines of multi-line statements).
 - **Not identical to the SAP pretty printer.** New `CATCH` lines line up with `TRY`, like `ELSE` with `IF`. The pretty printer indents a TRY body by 4 and `CATCH` by 2, which Zed can't express, because it indents one level relative to the previous line. `ENDTRY` still lines up with `TRY` in pretty-printed code. Continuation lines of multi-line statements keep the previous line's indent.
-- **Not modelled as blocks:** `SELECT … ENDSELECT` (a SELECT loop can't be told from a single SELECT by its first line), `AT NEW … ENDAT`, `DEFINE … END-OF-DEFINITION` and similar. Their closing lines still outdent.
+- **Not modelled as blocks:** `DEFINE … END-OF-DEFINITION`, `ON CHANGE OF … ENDON`, `PROVIDE … ENDPROVIDE`, `EXEC SQL … ENDEXEC`, `WITH … ENDWITH` and similar. Their closing lines still outdent.
 
 ## Design notes
 
@@ -140,7 +147,6 @@ AMDP methods (`METHOD m BY DATABASE PROCEDURE …`) are blocks whose body is kep
 
 ## Ideas / next steps
 
-- Model `SELECT … ENDSELECT`, `AT NEW … ENDAT` and event blocks in the grammar too.
 - abaplint language server for diagnostics.
 
 ## License
