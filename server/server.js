@@ -22,7 +22,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
-const { fileURLToPath } = require("node:url");
+const { fileURLToPath, pathToFileURL } = require("node:url");
 const abaplint = require("@abaplint/core");
 const {
   createConnection,
@@ -34,6 +34,9 @@ const {
   MessageType,
   ShowMessageNotification,
   DiagnosticSeverity,
+  CodeActionKind,
+  LSPErrorCodes,
+  ResponseError,
 } = require("vscode-languageserver/node");
 const { TextDocument } = require("vscode-languageserver-textdocument");
 
@@ -297,6 +300,17 @@ function packageFolder(filename, root) {
   return { dir, glob: "/**/*.*" };
 }
 
+/** The editor text of an open document, or undefined. */
+function openDocumentText(filename) {
+  const key = fileKey(filename);
+  for (const document of documents?.all() ?? []) {
+    if (fileKey(uriToFilename(document.uri) ?? "") === key) {
+      return document.getText();
+    }
+  }
+  return undefined;
+}
+
 function readText(filename) {
   try {
     return fs.readFileSync(filename, "utf8");
@@ -439,21 +453,37 @@ function includeStatement(name) {
   return new RegExp(`^[ \\t]*INCLUDE[ \\t]+${escapeRegExp(name)}(?:[ \\t]+IF[ \\t]+FOUND)?[ \\t]*\\.`, "im");
 }
 
+// The registry of each open document checked on its own, by URI. Hover and
+// the other requests reuse it until the document or the config changes.
+const standalones = new Map();
+
 /**
- * Checks a file in a registry of its own: a file without an abapGit name as a
- * program, an object file as itself.
+ * A registry of its own for an open document: a file without an abapGit name
+ * as a program (`<stem>.prog.abap`), an object file as itself. Returns
+ * `{ registry, name }`, `name` being the file's name in the registry.
  */
-function standaloneDiagnostics(filename, text, config) {
+function standaloneRegistry(document, filename, config) {
+  const cached = standalones.get(document.uri);
+  if (cached !== undefined && cached.version === document.version && cached.config === config) {
+    return cached;
+  }
   let name = filename;
   if (!isObjectFilename(filename)) {
     const base = basename(filename);
     name = `${filename.slice(0, filename.length - base.length)}${base.split(".")[0] || "program"}.prog.abap`;
   }
   const registry = new abaplint.Registry(config);
-  registry.addFile(new abaplint.MemoryFile(name, text));
+  registry.addFile(new abaplint.MemoryFile(name, document.getText()));
+  const entry = { version: document.version, config, registry, name };
+  standalones.set(document.uri, entry);
+  return entry;
+}
+
+/** The findings for a file checked on its own, as for Project.issues(). */
+function standaloneIssues({ registry, name }) {
   const file = registry.getFileByName(name); // undefined if global.exclude matches
   const object = file === undefined ? undefined : registry.findObjectForFile(file);
-  return object === undefined ? [] : toDiagnostics(registry.findIssuesObject(object), name);
+  return object === undefined ? undefined : { issues: registry.findIssuesObject(object), filename: name };
 }
 
 // ---------------------------------------------------------------------------
@@ -473,6 +503,8 @@ class Project {
    */
   load() {
     const folders = this.folders ?? [];
+    // Keeps counting up across reloads: cached findings are keyed by it.
+    const changes = (this.changes ?? 0) + 1;
     let state;
     const config = readConfig(this.root);
     try {
@@ -481,7 +513,7 @@ class Project {
       warn(`${this.root}: ${errorMessage(error)}. Using the default config.`);
       state = this.build(defaultConfig);
     }
-    Object.assign(this, state);
+    Object.assign(this, state, { changes });
     log(`${this.root}: ${state.projectFiles} files, ${state.dependencyFiles.size} dependency files`);
     for (const folder of folders) {
       try {
@@ -617,7 +649,8 @@ class Project {
     if (!this.isExtraFile(filename) && !this.canAdd(filename)) {
       return false;
     }
-    const text = readText(filename);
+    // An open document's editor text wins over the disk.
+    const text = openDocumentText(filename) ?? readText(filename);
     if (text === undefined) {
       return false;
     }
@@ -692,10 +725,14 @@ class Project {
     }
   }
 
-  /** Marks `object` dirty if the registry changed since it was last checked. */
+  /**
+   * Marks `object` dirty unless it was checked through here since the last
+   * registry change. Also if it was never checked here: abaplint may have
+   * cached results for it while checking other objects (cyclic_oo, finding
+   * implementations).
+   */
   refresh(object) {
-    const checked = this.checkedAt.get(object);
-    if (checked !== undefined && checked !== this.changes) {
+    if (this.checkedAt.get(object) !== this.changes) {
       object.setDirty();
     }
     this.checkedAt.set(object, this.changes);
@@ -722,12 +759,17 @@ class Project {
     return mains;
   }
 
-  diagnostics(filename) {
+  /** The object of a file in the registry, or undefined (also if excluded by global.exclude). */
+  objectForFile(filename) {
     const file = this.registry.getFileByName(filename);
-    const object = file === undefined ? undefined : this.registry.findObjectForFile(file);
-    if (object === undefined) {
-      return []; // excluded by global.exclude
-    }
+    return file === undefined ? undefined : this.registry.findObjectForFile(file);
+  }
+
+  /**
+   * Makes abaplint's cached results for `object` current. With `all`, for
+   * every object, as finding references or renaming looks at all of them.
+   */
+  prepare(object, { all = false } = {}) {
     if (this.definitionsStale) {
       this.definitionsStale = false;
       for (const other of this.registry.getObjects()) {
@@ -738,7 +780,25 @@ class Project {
       // The registry only rebuilds definitions while something is dirty.
       object.setDirty();
     }
-    this.refresh(object);
+    if (all) {
+      for (const other of this.registry.getObjects()) {
+        this.refresh(other);
+      }
+    } else {
+      this.refresh(object);
+    }
+  }
+
+  /**
+   * The findings for `filename`: `{ issues, filename }`, `filename` being its
+   * name in the registry. Undefined if global.exclude excludes it.
+   */
+  issues(filename) {
+    const object = this.objectForFile(filename);
+    if (object === undefined) {
+      return undefined;
+    }
+    this.prepare(object);
     const issues = this.registry.findIssuesObject(object);
     // An include has no syntax check of its own: its errors are found by
     // checking the programs that include it.
@@ -748,7 +808,7 @@ class Project {
         issues.push(...this.registry.findIssuesObject(main));
       }
     }
-    return toDiagnostics(issues, file.getFilename());
+    return { issues, filename: this.registry.getFileByName(filename).getFilename() };
   }
 }
 
@@ -785,25 +845,55 @@ function route(filename) {
 // ---------------------------------------------------------------------------
 // Documents
 
-function documentDiagnostics(document) {
+// The findings last computed for each open document, by URI, shared by
+// diagnostics and code actions: `{ version, changes, result }`, `result`
+// being from documentIssues().
+const published = new Map();
+
+/** The project-wide change count a document's findings depend on. */
+function changesFor(filename) {
+  const { kind, project } = route(filename);
+  return kind === "standalone" ? project?.config : project.changes;
+}
+
+/**
+ * An open document's findings: `{ issues, filename }` (its name in the
+ * registry), or undefined if it isn't checked.
+ */
+function documentIssues(document) {
   const filename = uriToFilename(document.uri);
   if (filename === undefined) {
-    return [];
+    return undefined;
   }
   const { kind, project } = route(filename);
   if (kind === "project") {
-    return project.diagnostics(filename);
+    return project.issues(filename);
   }
   if (kind === "dependency") {
-    return [];
+    return undefined;
   }
-  return standaloneDiagnostics(filename, document.getText(), project?.config ?? defaultConfig);
+  return standaloneIssues(standaloneRegistry(document, filename, project?.config ?? defaultConfig));
+}
+
+/** documentIssues(), reusing the last result if still current. */
+function currentIssues(document) {
+  const filename = uriToFilename(document.uri);
+  const changes = filename === undefined ? undefined : changesFor(filename);
+  const last = published.get(document.uri);
+  if (last !== undefined && last.version === document.version && last.changes === changes) {
+    return last.result;
+  }
+  const result = documentIssues(document);
+  published.set(document.uri, { version: document.version, changes, result });
+  return result;
 }
 
 function publish(document) {
   let diagnostics;
   try {
-    diagnostics = documentDiagnostics(document);
+    // Reuses the findings if a code action request already computed them.
+    const result = currentIssues(document);
+    diagnostics = result === undefined ? [] : toDiagnostics(result.issues, result.filename);
   } catch (error) {
     log(`${document.uri}: ${errorDetail(error)}`);
     // Replaces the previous findings, which may no longer be true.
@@ -906,6 +996,9 @@ function onDidChangeContent(event) {
 
 function onDidClose(event) {
   connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
+  standalones.delete(event.document.uri);
+  published.delete(event.document.uri);
+  formatted.delete(event.document.uri);
   const filename = uriToFilename(event.document.uri);
   if (filename === undefined) {
     return;
@@ -925,6 +1018,569 @@ function onDidClose(event) {
     log(`${event.document.uri}: ${errorDetail(error)}`);
   }
   scheduleDiagnostics({ project: true });
+}
+
+// ---------------------------------------------------------------------------
+// Language features: hover, go to definition and the rest, answered by
+// @abaplint/core's LanguageServer. It names files by their registry
+// filename where LSP has URIs, so requests and results are translated, and
+// its edits are checked before they reach the editor.
+
+// Client capabilities that change how workspace edits are sent.
+let clientSupportsDocumentChanges = false;
+let clientSupportsFileRenames = false;
+
+/**
+ * What a request about `uri` is answered from: `{ registry, filename, uri,
+ * project, editable, standaloneName }`. `filename` is the document's name in
+ * `registry`. `editable` is false for dependency files, and for a document
+ * whose registry copy isn't its editor text. Undefined if the document isn't
+ * open or is excluded.
+ */
+function requestContext(uri, { all = false } = {}) {
+  const document = documents.get(uri);
+  const filename = uriToFilename(uri);
+  if (document === undefined || filename === undefined) {
+    return undefined;
+  }
+  const { kind, project } = route(filename);
+  if (kind === "standalone") {
+    const { registry, name } = standaloneRegistry(document, filename, project?.config ?? defaultConfig);
+    if (registry.getFileByName(name) === undefined) {
+      return undefined;
+    }
+    registry.parse();
+    return { registry, filename: name, uri, editable: true, standaloneName: name };
+  }
+  const object = project.objectForFile(filename);
+  if (object === undefined) {
+    return undefined;
+  }
+  project.prepare(object, { all });
+  // Before abaplint looks anything up: it would otherwise parse objects
+  // itself, without the config's syntax version and macros, and cache that.
+  project.registry.parse();
+  const file = project.registry.getFileByName(filename);
+  return {
+    registry: project.registry,
+    filename: file.getFilename(),
+    uri,
+    project,
+    editable: kind === "project" && file.getRaw() === document.getText(),
+  };
+}
+
+/** Whether a rename or fix may change `filename` (a registry filename). */
+function isEditableFile(context, filename) {
+  if (typeof filename !== "string") {
+    return false;
+  }
+  if (context.standaloneName !== undefined) {
+    return fileKey(filename) === fileKey(context.standaloneName);
+  }
+  const { project } = context;
+  return (
+    /^(\/|[A-Za-z]:\/)/.test(filename) && // not one of abaplint's built-in definitions
+    (project.isProjectFile(filename) || project.isExtraFile(filename)) &&
+    !project.isDependencyFile(filename)
+  );
+}
+
+/** The URI for a registry filename in results, or undefined (abaplint's built-in definitions). */
+function filenameToUri(context, filename) {
+  if (typeof filename !== "string") {
+    return undefined;
+  }
+  if (context.standaloneName !== undefined) {
+    return fileKey(filename) === fileKey(context.standaloneName) ? context.uri : undefined;
+  }
+  if (!/^(\/|[A-Za-z]:\/)/.test(filename)) {
+    return undefined;
+  }
+  // The open document's own URI, which may differ in case.
+  const key = fileKey(filename);
+  for (const document of documents.all()) {
+    if (fileKey(uriToFilename(document.uri) ?? "") === key) {
+      return document.uri;
+    }
+  }
+  return pathToFileURL(filename).href;
+}
+
+function toLocation(context, location) {
+  const uri = filenameToUri(context, location?.uri);
+  return uri === undefined ? undefined : { uri, range: location.range };
+}
+
+function toLocations(context, locations) {
+  const result = [];
+  const seen = new Set();
+  for (const location of [].concat(locations ?? [])) {
+    const mapped = toLocation(context, location);
+    const key = JSON.stringify(mapped);
+    if (mapped !== undefined && !seen.has(key)) {
+      seen.add(key);
+      result.push(mapped);
+    }
+  }
+  return result;
+}
+
+/** A position in the context's document, as abaplint's LanguageServer wants it. */
+function positionParams(context, position) {
+  return { textDocument: { uri: context.filename }, position };
+}
+
+const isEmpty = (result) => result === undefined || result === null || (Array.isArray(result) && result.length === 0);
+
+/**
+ * Runs `request` at `position`, and if that finds nothing, one character
+ * before it: abaplint only finds a token under the cursor, and the cursor is
+ * often just after one (after typing or double-clicking a name). Returns
+ * `{ result, position }`, the position being the one that was used.
+ */
+function atCursor(position, request) {
+  const result = request(position);
+  if (!isEmpty(result) || position.character === 0) {
+    return { result, position };
+  }
+  const before = { line: position.line, character: position.character - 1 };
+  const retry = request(before);
+  return isEmpty(retry) ? { result, position } : { result: retry, position: before };
+}
+
+function requestFailed(message) {
+  return new ResponseError(LSPErrorCodes.RequestFailed, message);
+}
+
+const comparePositions = (a, b) => a.line - b.line || a.character - b.character;
+
+/** `edits` sorted, without duplicates; throws if two of them overlap. */
+function checkedTextEdits(uri, edits) {
+  const unique = [...new Map(edits.map((edit) => [JSON.stringify(edit), edit])).values()];
+  unique.sort((a, b) => comparePositions(a.range.start, b.range.start) || comparePositions(a.range.end, b.range.end));
+  for (let i = 1; i < unique.length; i++) {
+    const previous = unique[i - 1].range;
+    const next = unique[i].range;
+    if (comparePositions(next.start, previous.end) < 0 || comparePositions(next.start, previous.start) === 0) {
+      throw requestFailed(`abaplint's changes to ${uri} overlap`);
+    }
+  }
+  return unique;
+}
+
+/**
+ * The file a renamed object's file is renamed to: `rename.oldName` replaced
+ * by `rename.newName` at the start of its name, in the same folder. abaplint
+ * replaces the first match anywhere in the path, folders included.
+ */
+function renamedFile(filename, rename) {
+  const toFile = (name) => name.toLowerCase().replaceAll("/", "#"); // abapGit names /NS/X as #ns#x
+  const base = basename(filename);
+  const from = toFile(rename?.oldName ?? "");
+  if (from === "" || !base.toLowerCase().startsWith(`${from}.`)) {
+    throw requestFailed(`abaplint can't work out the new name of ${filename}`);
+  }
+  const renamed = `${dirname(filename)}/${toFile(rename.newName)}${base.slice(from.length)}`;
+  if (fileKey(renamed) !== fileKey(filename) && fs.existsSync(renamed)) {
+    throw requestFailed(`${renamed} already exists`);
+  }
+  return renamed;
+}
+
+/**
+ * Translates an abaplint workspace edit (registry filenames) for the client,
+ * with one text edit list per file. Fails if it would change a file that
+ * isn't editable, or if its edits overlap. `rename` (`{ oldName, newName }`)
+ * is the object rename that renames files, if any.
+ */
+function toWorkspaceEdit(context, edit, rename) {
+  const target = (filename) => {
+    if (!isEditableFile(context, filename)) {
+      throw requestFailed(
+        context.project?.isDependencyFile(filename)
+          ? `${filename} is in a dependency folder, which isn't changed`
+          : `abaplint can't change ${filename}`,
+      );
+    }
+    return filenameToUri(context, filename);
+  };
+  const byUri = new Map();
+  const addEdits = (uri, edits) => byUri.set(uri, [...(byUri.get(uri) ?? []), ...edits]);
+  const renames = [];
+  for (const [filename, edits] of Object.entries(edit?.changes ?? {})) {
+    addEdits(target(filename), edits);
+  }
+  for (const change of edit?.documentChanges ?? []) {
+    if (change.kind === "rename") {
+      if (context.standaloneName !== undefined) {
+        throw requestFailed("renaming files needs the file to be part of a project");
+      }
+      const oldUri = target(change.oldUri);
+      const newUri = pathToFileURL(renamedFile(change.oldUri, rename)).href;
+      if (oldUri !== newUri) {
+        renames.push({ kind: "rename", oldUri, newUri });
+      }
+    } else if (change.textDocument !== undefined) {
+      addEdits(target(change.textDocument.uri), change.edits);
+    } else {
+      throw requestFailed(`unexpected change ${change.kind ?? ""}`);
+    }
+  }
+  if (renames.length > 0 && !(clientSupportsDocumentChanges && clientSupportsFileRenames)) {
+    throw requestFailed("this change renames files, which the editor doesn't support");
+  }
+  const files = [...byUri].map(([uri, edits]) => ({ uri, edits: checkedTextEdits(uri, edits) }));
+  if (!clientSupportsDocumentChanges) {
+    return { changes: Object.fromEntries(files.map(({ uri, edits }) => [uri, edits])) };
+  }
+  const documentChanges = files.map(({ uri, edits }) => ({
+    // The open document's version, so the client can refuse an edit made
+    // for older text; null for files that aren't open.
+    textDocument: { uri, version: documents.get(uri)?.version ?? null },
+    edits,
+  }));
+  // Text edits refer to the files' old names, so they come first.
+  return { documentChanges: [...documentChanges, ...renames] };
+}
+
+/** Runs a request handler, logging failures; ResponseErrors reach the client. */
+function handle(name, handler) {
+  return (params) => {
+    try {
+      return handler(params);
+    } catch (error) {
+      if (error instanceof ResponseError) {
+        return error;
+      }
+      log(`${name} ${params?.textDocument?.uri ?? ""}: ${errorDetail(error)}`);
+      return requestFailed(`abaplint: ${errorMessage(error)}`);
+    }
+  };
+}
+
+function onHover({ textDocument, position }) {
+  const context = requestContext(textDocument.uri);
+  if (context === undefined) {
+    return null;
+  }
+  const server = new abaplint.LanguageServer(context.registry);
+  const { result: hover } = atCursor(position, (at) => server.hover(positionParams(context, at)));
+  if (hover === undefined) {
+    return null;
+  }
+  // abaplint's debugging details aren't useful in an editor.
+  const value = hover.contents.value
+    .split("\n")
+    .filter((line) => !/^Extra: \{.*\}$/.test(line) && line.trim() !== "(Resolved)")
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return { contents: { kind: "markdown", value } };
+}
+
+function onDefinition({ textDocument, position }) {
+  const context = requestContext(textDocument.uri);
+  if (context === undefined) {
+    return null;
+  }
+  const server = new abaplint.LanguageServer(context.registry);
+  const { result } = atCursor(position, (at) => server.gotoDefinition(positionParams(context, at)));
+  return toLocation(context, result) ?? null;
+}
+
+function onImplementation({ textDocument, position }) {
+  // abaplint looks at every object for implementations.
+  const context = requestContext(textDocument.uri, { all: true });
+  if (context === undefined) {
+    return null;
+  }
+  const server = new abaplint.LanguageServer(context.registry);
+  const { result } = atCursor(position, (at) => server.implementation(positionParams(context, at)));
+  return toLocations(context, result);
+}
+
+const sameLocation = (a, b) =>
+  a !== undefined &&
+  b !== undefined &&
+  fileKey(a.uri) === fileKey(b.uri) &&
+  comparePositions(a.range.start, b.range.start) === 0 &&
+  comparePositions(a.range.end, b.range.end) === 0;
+
+function onReferences({ textDocument, position, context: { includeDeclaration } }) {
+  const context = requestContext(textDocument.uri, { all: true });
+  if (context === undefined) {
+    return null;
+  }
+  const server = new abaplint.LanguageServer(context.registry);
+  const { result: declaration, position: at } = atCursor(position, (p) =>
+    server.gotoDefinition(positionParams(context, p)),
+  );
+  const references = server.references({ ...positionParams(context, at), context: { includeDeclaration } });
+  // abaplint leaves out some declarations and includes others.
+  const others = references.filter((reference) => !sameLocation(reference, declaration));
+  return toLocations(context, includeDeclaration && declaration !== undefined ? [declaration, ...others] : others);
+}
+
+function onDocumentSymbol({ textDocument }) {
+  const context = requestContext(textDocument.uri);
+  if (context === undefined) {
+    return null;
+  }
+  return new abaplint.LanguageServer(context.registry).documentSymbol({ textDocument: { uri: context.filename } });
+}
+
+// The last formatting result per URI: `{ version, config, edits }`. Pretty
+// printing is slow on long files, and format-on-save asks again and again.
+const formatted = new Map();
+
+function onDocumentFormatting({ textDocument }) {
+  const document = documents.get(textDocument.uri);
+  const context = requestContext(textDocument.uri);
+  if (document === undefined || context === undefined || !context.editable) {
+    return null;
+  }
+  const config = context.registry.getConfig();
+  const last = formatted.get(textDocument.uri);
+  if (last !== undefined && last.version === document.version && last.config === config) {
+    return last.edits;
+  }
+  const result = new abaplint.LanguageServer(context.registry).documentFormatting({
+    textDocument: { uri: context.filename },
+  });
+  // abaplint's range ends past the last line; replace exactly the document.
+  const end = document.positionAt(document.getText().length);
+  const edits = result.length === 0 ? [] : [{ range: { start: { line: 0, character: 0 }, end }, newText: result[0].newText }];
+  formatted.set(textDocument.uri, { version: document.version, config, edits });
+  return edits;
+}
+
+// ---------------------------------------------------------------------------
+// Rename
+
+/** The statement of `abapFile` at a 0-based LSP position. */
+function statementAt(abapFile, { line, character }) {
+  const at = new abaplint.Position(line + 1, character + 1);
+  return abapFile
+    ?.getStatements()
+    .find((statement) => !at.isBefore(statement.getStart()) && at.isBefore(statement.getEnd()));
+}
+
+function abapFileOf(registry, filename) {
+  const file = registry.getFileByName(filename);
+  const object = file === undefined ? undefined : registry.findObjectForFile(file);
+  return object?.getABAPFiles?.().find((abapFile) => abapFile.getFilename().toUpperCase() === filename.toUpperCase());
+}
+
+/**
+ * Whether `declaration` is a parameter of a method, event or function
+ * module. Callers name those in arguments (`iv_x = 1`), which abaplint's
+ * references don't find, so renaming one would break its callers.
+ */
+function isParameter(context, declaration) {
+  const statement = statementAt(abapFileOf(context.registry, declaration.uri), declaration.range.start);
+  const type = statement?.get().constructor.name;
+  if (type === "FunctionModule") {
+    return true;
+  }
+  if (type !== "MethodDef" && type !== "Events") {
+    return false;
+  }
+  // The method's or event's own name is in the same statement.
+  const name = statement.findFirstExpression(type === "MethodDef" ? abaplint.Expressions.MethodName : abaplint.Expressions.EventName);
+  const start = name?.getFirstToken().getStart();
+  return start === undefined || start.getRow() !== declaration.range.start.line + 1 || start.getCol() !== declaration.range.start.character + 1;
+}
+
+/** The part of a name after `intf~` (an interface's method or attribute). */
+const shortName = (name) => name.slice(name.lastIndexOf("~") + 1);
+
+/**
+ * The range of `name` within a reference (registry filename and range), or
+ * undefined if the reference's text isn't that name. abaplint's references
+ * cover all of `zif_x~meth` for an interface method, and point at the start
+ * of a macro call for a name used in one.
+ */
+function nameRange(context, location, name) {
+  const { start, end } = location.range;
+  const row = context.registry.getFileByName(location.uri)?.getRawRows()[start.line];
+  if (row === undefined || start.line !== end.line) {
+    return undefined;
+  }
+  const text = row.slice(start.character, end.character).toUpperCase();
+  const wanted = name.toUpperCase();
+  if (text === wanted) {
+    return location.range;
+  }
+  // `zif_x~name`, and `!name` (a name escaped from being a keyword).
+  if (text.endsWith(`~${wanted}`) || text === `!${wanted}`) {
+    return { start: { line: start.line, character: end.character - name.length }, end };
+  }
+  return undefined;
+}
+
+/**
+ * What a rename at `position` would rename: `{ placeholder, range, position,
+ * declaration, global }`, or `{ reason }` if it can't be renamed.
+ */
+function renameTarget(context, position) {
+  const server = new abaplint.LanguageServer(context.registry);
+  const { result: prepared, position: at } = atCursor(position, (p) =>
+    server.prepareRename(positionParams(context, p)),
+  );
+  if (prepared === undefined) {
+    return { reason: "abaplint can't rename this" };
+  }
+  const placeholder = shortName(prepared.placeholder);
+  const declaration = server.gotoDefinition(positionParams(context, at));
+  if (declaration === undefined || !isEditableFile(context, declaration.uri)) {
+    return { reason: `${placeholder} isn't declared in this project, so it can't be renamed here` };
+  }
+  if (isParameter(context, declaration)) {
+    return { reason: `${placeholder} is a parameter, and renaming parameters isn't supported (callers' arguments wouldn't be renamed)` };
+  }
+  // A global class or interface: its definition names the object itself.
+  const object = context.registry.findObjectForFile(context.registry.getFileByName(declaration.uri));
+  const global =
+    (object?.getType() === "CLAS" || object?.getType() === "INTF") &&
+    object.getName().toUpperCase() === placeholder.toUpperCase();
+  const range = nameRange(context, { uri: context.filename, range: prepared.range }, placeholder) ?? prepared.range;
+  return { placeholder, range, position: at, declaration, global, server };
+}
+
+function onPrepareRename({ textDocument, position }) {
+  const context = requestContext(textDocument.uri);
+  if (context === undefined || !context.editable) {
+    return null;
+  }
+  const target = renameTarget(context, position);
+  return target.reason === undefined ? { range: target.range, placeholder: target.placeholder } : null;
+}
+
+function onRename({ textDocument, position, newName }) {
+  const context = requestContext(textDocument.uri, { all: true });
+  if (context === undefined) {
+    return null;
+  }
+  if (!context.editable) {
+    throw requestFailed("abaplint can't rename from this file");
+  }
+  const target = renameTarget(context, position);
+  if (target.reason !== undefined) {
+    throw requestFailed(target.reason);
+  }
+  const name = shortName(newName.trim());
+  if (!/^[A-Za-z_/][A-Za-z0-9_/]*$/.test(name)) {
+    throw requestFailed(`${newName} isn't a valid ABAP name`);
+  }
+  const { placeholder, declaration, global, server } = target;
+  const params = positionParams(context, target.position);
+  if (global) {
+    // abaplint's renamer also renames the files and the name in their XML.
+    const edit = server.rename({ ...params, newName: name });
+    if (edit === undefined) {
+      throw requestFailed(`abaplint can't rename ${placeholder}`);
+    }
+    return toWorkspaceEdit(context, edit, { oldName: placeholder, newName: name });
+  }
+  // A variable, attribute or method: its declaration and every reference.
+  // (abaplint's own rename sends a method's declaration edit to the wrong
+  // file when renaming from another one.)
+  const locations = [declaration, ...server.references({ ...params, context: { includeDeclaration: true } })];
+  const changes = {};
+  for (const location of locations) {
+    const range = nameRange(context, location, placeholder);
+    if (range === undefined) {
+      const line = location.range.start.line + 1;
+      throw requestFailed(`abaplint can't rename every use of ${placeholder} (${basename(location.uri)} line ${line})`);
+    }
+    (changes[location.uri] ??= []).push({ range, newText: name });
+  }
+  return toWorkspaceEdit(context, { changes });
+}
+
+// ---------------------------------------------------------------------------
+// Quick fixes
+
+/** Whether any edit of `a` overlaps one of `b` (LSP workspace edits with `changes`). */
+function editsOverlap(a, b) {
+  for (const [file, edits] of Object.entries(a.changes)) {
+    for (const x of edits) {
+      for (const y of b.changes[file] ?? []) {
+        const touching = comparePositions(x.range.start, y.range.start) === 0;
+        if (touching || (comparePositions(x.range.start, y.range.end) < 0 && comparePositions(y.range.start, x.range.end) < 0)) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+/** Quick fixes from the findings at `range`, from the same findings as the diagnostics. */
+function onCodeAction({ textDocument, range }) {
+  const document = documents.get(textDocument.uri);
+  const context = requestContext(textDocument.uri);
+  if (document === undefined || context === undefined || !context.editable) {
+    return null;
+  }
+  const result = currentIssues(document);
+  if (result === undefined) {
+    return [];
+  }
+  const upper = result.filename.toUpperCase();
+  const issues = result.issues.filter((issue) => issue.getFilename().toUpperCase() === upper);
+  const start = new abaplint.Position(range.start.line + 1, range.start.character + 1);
+  const end = new abaplint.Position(range.end.line + 1, range.end.character + 1);
+  const overlaps = (issue) => !issue.getEnd().isBefore(start) && !end.isBefore(issue.getStart());
+  const diagnostic = (issue) => toDiagnostics([issue], issue.getFilename())[0];
+  const action = (title, edit, diagnostics) => {
+    try {
+      return { title, kind: CodeActionKind.QuickFix, diagnostics, edit: toWorkspaceEdit(context, edit) };
+    } catch {
+      return undefined; // a fix that would change a file it can't, or overlaps itself
+    }
+  };
+
+  const actions = [];
+  const fixable = new Map(); // rule -> issues with a default fix
+  for (const issue of issues) {
+    const fix = issue.getDefaultFix();
+    if (fix !== undefined) {
+      fixable.set(issue.getKey(), [...(fixable.get(issue.getKey()) ?? []), issue]);
+    }
+    if (!overlaps(issue)) {
+      continue;
+    }
+    if (fix !== undefined) {
+      actions.push(action(`Fix: ${issue.getMessage()}`, abaplint.LSPEdit.mapEdit(fix), [diagnostic(issue)]));
+    }
+    for (const alternative of issue.getAlternativeFixes() ?? []) {
+      actions.push(action(alternative.description, abaplint.LSPEdit.mapEdit(alternative.edit), [diagnostic(issue)]));
+    }
+  }
+  // "Fix all" for a rule with a finding here and others in the file. Each fix
+  // was computed against the current text on its own, so fixes that overlap
+  // an earlier one are left for a second round.
+  const here = new Set(issues.filter(overlaps).map((issue) => issue.getKey()));
+  for (const [key, all] of fixable) {
+    if (!here.has(key) || all.length < 2) {
+      continue;
+    }
+    const chosen = [];
+    let combined = { changes: {} };
+    for (const issue of all) {
+      const edit = abaplint.LSPEdit.mapEdit(issue.getDefaultFix());
+      if (!editsOverlap(edit, combined)) {
+        chosen.push(issue);
+        combined = abaplint.LSPEdit.mapEdits(chosen.map((each) => each.getDefaultFix()));
+      }
+    }
+    if (chosen.length > 1) {
+      actions.push(action(`Fix all ${key} findings in this file`, combined, chosen.map(diagnostic)));
+    }
+  }
+  return actions.filter((each) => each !== undefined);
 }
 
 // ---------------------------------------------------------------------------
@@ -1024,6 +1680,9 @@ function onInitialize(params) {
     }
   }
   const canWatchFiles = params.capabilities.workspace?.didChangeWatchedFiles?.dynamicRegistration === true;
+  const workspaceEdit = params.capabilities.workspace?.workspaceEdit;
+  clientSupportsDocumentChanges = workspaceEdit?.documentChanges === true;
+  clientSupportsFileRenames = workspaceEdit?.resourceOperations?.includes("rename") === true;
   connection.onInitialized(() => {
     if (canWatchFiles) {
       connection.client
@@ -1037,7 +1696,17 @@ function onInitialize(params) {
     }
   });
   return {
-    capabilities: { textDocumentSync: TextDocumentSyncKind.Incremental },
+    capabilities: {
+      textDocumentSync: TextDocumentSyncKind.Incremental,
+      hoverProvider: true,
+      definitionProvider: true,
+      implementationProvider: true,
+      referencesProvider: true,
+      documentSymbolProvider: true,
+      documentFormattingProvider: true,
+      renameProvider: { prepareProvider: true },
+      codeActionProvider: { codeActionKinds: [CodeActionKind.QuickFix] },
+    },
     serverInfo: { name: "abaplint", version: abaplint.Registry.abaplintVersion() },
   };
 }
@@ -1049,6 +1718,15 @@ function main() {
   documents.onDidChangeContent(onDidChangeContent);
   documents.onDidClose(onDidClose);
   connection.onDidChangeWatchedFiles(onDidChangeWatchedFiles);
+  connection.onHover(handle("hover", onHover));
+  connection.onDefinition(handle("definition", onDefinition));
+  connection.onImplementation(handle("implementation", onImplementation));
+  connection.onReferences(handle("references", onReferences));
+  connection.onDocumentSymbol(handle("documentSymbol", onDocumentSymbol));
+  connection.onDocumentFormatting(handle("formatting", onDocumentFormatting));
+  connection.onPrepareRename(handle("prepareRename", onPrepareRename));
+  connection.onRenameRequest(handle("rename", onRename));
+  connection.onCodeAction(handle("codeAction", onCodeAction));
   process.on("uncaughtException", (error) => log(`Uncaught: ${errorDetail(error)}`));
   documents.listen(connection);
   connection.listen();

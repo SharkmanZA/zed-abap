@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/SharkmanZA/zed-abap/actions/workflows/ci.yml/badge.svg)](https://github.com/SharkmanZA/zed-abap/actions/workflows/ci.yml)
 
-ABAP language support for [Zed](https://zed.dev): syntax highlighting, a nested outline / symbol search, auto-indent, code folding, bracket matching, comment toggling, Vim text objects, [abaplint](https://abaplint.org) diagnostics and an optional file icon theme.
+ABAP language support for [Zed](https://zed.dev): syntax highlighting, a nested outline / symbol search, auto-indent, code folding, bracket matching, comment toggling, Vim text objects, [abaplint](https://abaplint.org) diagnostics, hover, go to definition, find references, rename, formatting and quick fixes, and an optional file icon theme.
 
 <p align="center"><img src="docs/images/highlighting.png" alt="examples/sample.abap open in Zed with ABAP syntax highlighting" width="700"></p>
 
@@ -68,9 +68,19 @@ If the theme isn't listed, run **`zed: rebuild dev extension`**: Zed registers i
 
 Every `.abap` file (in lower or UPPER case) gets a blue **A.** tile, `icons/abap.svg`. Zed shows one icon theme at a time, so choosing this one replaces any other icon theme you use. Every non-ABAP file keeps Zed's default icon: Zed merges its default file associations into extension icon themes and falls back to its default icons for anything the theme doesn't draw.
 
-## abaplint diagnostics
+## abaplint language server
 
-The extension runs [abaplint](https://abaplint.org) as a language server, so its findings show as diagnostics while you type. Each one names its rule and links to the rule's documentation at [rules.abaplint.org](https://rules.abaplint.org).
+The extension runs [abaplint](https://abaplint.org) as a language server:
+
+- **Diagnostics** while you type. Each one names its rule and links to the rule's documentation at [rules.abaplint.org](https://rules.abaplint.org).
+- **Hover** shows a variable's type, a method's signature and so on.
+- **Go to definition** (F12, or cmd/ctrl-click), **go to implementation** and **find all references** (alt-shift-F12) work across the objects of the project.
+- **Rename** (F2) renames variables, attributes and methods, and global classes and interfaces together with their files and every use. It is refused, with a message, when it couldn't rename every use: for parameters (callers' named arguments aren't found), names used in macros, and anything declared outside the project (built-ins like `sy`, or dependencies).
+- **Formatting** uses abaplint's pretty printer: keyword case and indentation. Keywords are upper case unless `abaplint.json` sets another style, as in `"keyword_case": { "style": "lower" }`; turning the rule off doesn't stop formatting from changing case. Run it with **`editor: format`**. If `format_on_save` is on in your settings, saving an ABAP file formats it too; to format ABAP only on demand, add `"languages": { "ABAP": { "format_on_save": "off" } }` to `settings.json`.
+- **Quick fixes** (cmd/ctrl-.) for findings that have one, such as adding a missing method implementation, plus "fix all" for a rule with several findings in the file.
+- **Document symbols** for classes and their methods.
+
+Files in dependency folders can be read with hover, go to definition and find references, but are never changed by rename, formatting or quick fixes.
 
 On first use the extension installs the server's npm packages with Zed's own Node into Zed's extension work directory, so nothing is installed globally. `@abaplint/core` (the parser and rules) is updated to its latest version when Zed starts, so new ABAP syntax and rule fixes arrive without an extension update. The server's other packages are pinned in `server/package.json`.
 
@@ -91,8 +101,7 @@ Config changes are picked up without a restart.
 - **Projects.** The files matching `global.files` (relative to the root, default `/src/**/*.*`) are loaded together, abapGit style (`zcl_x.clas.abap`, `zcl_x.clas.xml`, `ztab.tabl.xml`, …). References between your objects resolve, and a change to one object rechecks the others you have open. An include's errors are found by checking the programs that include it. `exclude` and `noIssues` patterns are regular expressions matched against absolute paths, as in the CLI; if one isn't a valid regex, the server warns and uses the default config. Symlinks are followed and folders starting with `.` are skipped. Open the folder that holds `abaplint.json` (usually the repository) in Zed: the server doesn't look for a config in subfolders.
 - **Dependencies.** `dependencies` entries with a local `folder` are loaded before the project, so an object in both is the project's. Their files aren't checked when you open them. Git `url` dependencies (and `useApackDependencies`) aren't cloned: clone them yourself and point `folder` at the clone.
 - **Files outside `global.files`.** Opening an abapGit-named file outside `global.files` also loads the objects in its abapGit package folder: the top folder of its chain of folders with a `package.devc.xml`, subpackages included, or just its own folder if it has no `package.devc.xml`. References to the objects next to it then resolve without a config, and those files follow the disk like project files. A copy of an object the project already has (a backup, say) is checked on its own instead.
-- **Files without an abapGit name** (`sample.abap`) are checked on their own, as a program, with the folder's config.
-- **Only diagnostics.** abaplint can also do hover, go to definition, formatting, quick fixes and rename. Those aren't wired up yet.
+- **Files without an abapGit name** (`sample.abap`) are checked on their own, as a program, with the folder's config. Hover, go to definition and the rest work within that file.
 - **Turning it off:** `"languages": { "ABAP": { "language_servers": ["!abaplint", "..."] } }` in `settings.json`.
 - **Running another build of the server:** `"lsp": { "abaplint": { "binary": { "path": "node", "arguments": ["/path/to/server/server.js", "--stdio"] } } }` runs that command instead of the installed server (run `npm install` in its folder first). The server's log is under **`dev: open language server logs`**.
 
