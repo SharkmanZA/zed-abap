@@ -14,6 +14,7 @@ ABAP language support for [Zed](https://zed.dev): syntax highlighting, a nested 
 ```
 zed-abap/
 ├── extension.toml          # Zed extension manifest (points at grammar/ by commit SHA)
+├── abaplint.json           # abaplint config for examples/
 ├── Cargo.toml, src/lib.rs  # extension code: installs and starts the abaplint server
 ├── server/                 # abaplint language server (Node, @abaplint/core)
 │   ├── server.js
@@ -36,7 +37,7 @@ zed-abap/
 │   └── test/corpus/
 ├── examples/
 │   ├── sample.abap         # highlighting showcase (not meant to compile)
-│   └── icons-demo/         # dummy abapGit package for the README screenshots
+│   └── icons-demo/         # small abapGit package, used for the README screenshots
 ├── docs/images/            # README screenshots
 ├── .github/workflows/ci.yml # checks for pull requests (see Continuous integration)
 └── scripts/bump-grammar.sh
@@ -73,7 +74,7 @@ The extension runs [abaplint](https://abaplint.org) as a language server, so its
 
 On first use the extension installs the server's npm packages with Zed's own Node into Zed's extension work directory, so nothing is installed globally. `@abaplint/core` (the parser and rules) is updated to its latest version when Zed starts, so new ABAP syntax and rule fixes arrive without an extension update. The server's other packages are pinned in `server/package.json`.
 
-**Configuration** works like the abaplint CLI. The server reads `abaplint.json`, `abaplint.jsonc` or `abaplint.json5` from the root of the folder you open in Zed. Without one it uses abaplint's default config, which turns on every rule. That is thorough but noisy, so add a config with the rules you want (`npx @abaplint/cli -d` prints the default one to start from). A minimal config for syntax errors only:
+**Configuration** works like the abaplint CLI. The server reads `abaplint.json`, `abaplint.jsonc` or `abaplint.json5` from the root of the folder you open in Zed. Without one (or if it can't be used) the server reports errors only: abaplint's default settings with just the rules `parser_error`, `check_syntax`, `unknown_types`, `implement_methods`, `method_implemented_twice`, `superclass_final`, `cyclic_oo`, `check_include` and `xml_consistency`. abaplint's style rules (naming, keyword case and so on) need a config that turns them on. `npx @abaplint/cli -d` prints abaplint's full default config, with every rule, to start from. A minimal config:
 
 ```json
 {
@@ -83,11 +84,14 @@ On first use the extension installs the server's npm packages with Zed's own Nod
 }
 ```
 
+This repository's own [`abaplint.json`](abaplint.json) covers `examples/` and adds a few style rules.
+
 Config changes are picked up without a restart.
 
 - **Projects.** The files matching `global.files` (relative to the root, default `/src/**/*.*`) are loaded together, abapGit style (`zcl_x.clas.abap`, `zcl_x.clas.xml`, `ztab.tabl.xml`, …). References between your objects resolve, and a change to one object rechecks the others you have open. An include's errors are found by checking the programs that include it. `exclude` and `noIssues` patterns are regular expressions matched against absolute paths, as in the CLI; if one isn't a valid regex, the server warns and uses the default config. Symlinks are followed and folders starting with `.` are skipped. Open the folder that holds `abaplint.json` (usually the repository) in Zed: the server doesn't look for a config in subfolders.
 - **Dependencies.** `dependencies` entries with a local `folder` are loaded before the project, so an object in both is the project's. Their files aren't checked when you open them. Git `url` dependencies (and `useApackDependencies`) aren't cloned: clone them yourself and point `folder` at the clone.
-- **Files outside a project.** A file without an abapGit name (`sample.abap`) is checked on its own, as a program, with the folder's config. An abapGit-named file outside `global.files` is checked against the project while it's open, unless the project already has that object (a backup or a copy); then it is checked on its own.
+- **Files outside `global.files`.** Opening an abapGit-named file outside `global.files` also loads the objects in its abapGit package folder: the top folder of its chain of folders with a `package.devc.xml`, subpackages included, or just its own folder if it has no `package.devc.xml`. References to the objects next to it then resolve without a config, and those files follow the disk like project files. A copy of an object the project already has (a backup, say) is checked on its own instead.
+- **Files without an abapGit name** (`sample.abap`) are checked on their own, as a program, with the folder's config.
 - **Only diagnostics.** abaplint can also do hover, go to definition, formatting, quick fixes and rename. Those aren't wired up yet.
 - **Turning it off:** `"languages": { "ABAP": { "language_servers": ["!abaplint", "..."] } }` in `settings.json`.
 - **Running another build of the server:** `"lsp": { "abaplint": { "binary": { "path": "node", "arguments": ["/path/to/server/server.js", "--stdio"] } } }` runs that command instead of the installed server (run `npm install` in its folder first). The server's log is under **`dev: open language server logs`**.

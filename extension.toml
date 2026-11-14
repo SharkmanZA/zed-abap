@@ -1,7 +1,7 @@
 id = "abap"
 name = "ABAP"
 description = "ABAP syntax highlighting, outline, auto-indent, file icons and abaplint diagnostics for Zed, powered by a Tree-sitter grammar."
-version = "0.3.0"
+version = "0.3.1"
 schema_version = 1
 authors = ["Jake Mileham"]
 repository = "https://github.com/SharkmanZA/zed-abap"

@@ -1,0 +1,26 @@
+{
+  "global": {
+    "files": "/examples/**/*.*",
+    "exclude": [
+      "/examples/sample\\."
+    ]
+  },
+  "syntax": {
+    "version": "v757",
+    "errorNamespace": "^(Z|Y|LCL_|TY_|LIF_)"
+  },
+  "rules": {
+    "parser_error": true,
+    "check_syntax": true,
+    "unknown_types": true,
+    "implement_methods": true,
+    "method_implemented_twice": true,
+    "superclass_final": true,
+    "cyclic_oo": true,
+    "check_include": true,
+    "xml_consistency": true,
+    "keyword_case": true,
+    "unused_variables": true,
+    "obsolete_statement": true
+  }
+}

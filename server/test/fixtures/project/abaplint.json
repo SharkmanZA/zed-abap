@@ -3,6 +3,9 @@
     "files": "/src/**/*.*",
     "noIssues": [
       "zquiet"
+    ],
+    "exclude": [
+      "/legacy/"
     ]
   },
   "syntax": {
