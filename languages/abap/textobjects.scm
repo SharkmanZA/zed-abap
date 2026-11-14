@@ -1,5 +1,5 @@
 ; Text objects for Vim mode: `]m` / `[m` jump between methods, forms, function
-; modules and dialog modules; `af` / `if` select one; `]]` / `[[`, `ac` / `ic`
+; modules, dialog modules and event blocks; `af` / `if` select one; `]]` / `[[`, `ac` / `ic`
 ; work on classes and interfaces.
 
 [
@@ -7,6 +7,7 @@
   (form_block body: (_)? @function.inside)
   (function_block body: (_)? @function.inside)
   (module_block body: (_)? @function.inside)
+  (event_block body: (_)? @function.inside)
 ] @function.around
 
 ; CLASS ... DEFINITION: inside = its sections (and anything before them).

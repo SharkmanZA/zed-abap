@@ -8,7 +8,7 @@ lv = zcl=>new.
 lo = zcl_foo=>new( ).
 lt = lo->filter( iv = 1 ).
 METHOD zif_x~value.
-SELECT ztab~ref FROM ztab.
+SELECT ztab~ref FROM ztab INTO TABLE @lt.
 
 ---
 
@@ -65,6 +65,11 @@ SELECT ztab~ref FROM ztab.
                 (name)
                 (name))
               (name)
+              (name)
+              (name)
+              (table_type
+                (keyword))
+              (operator)
               (name))))))))
 
 ==================
@@ -147,7 +152,7 @@ DATA ls TYPE LINE OF ty_tab.
 Keywords after a column named type
 ==================
 
-SELECT type FROM ztab WHERE type IN @lt.
+SELECT type FROM ztab WHERE type IN @lt INTO TABLE @lt2.
 SORT lt BY type DESCENDING.
 
 ---
@@ -165,6 +170,11 @@ SORT lt BY type DESCENDING.
       (keyword)
       (type_name
         (name)))
+    (operator)
+    (name)
+    (name)
+    (table_type
+      (keyword))
     (operator)
     (name))
   (statement

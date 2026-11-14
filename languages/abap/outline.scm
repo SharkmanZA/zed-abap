@@ -19,6 +19,10 @@
   (interface_block open: (statement . (keyword) @context . name: (name) @name))
 ]) @item
 
+; START-OF-SELECTION. / AT SELECTION-SCREEN ON p_carr. / TOP-OF-PAGE ...
+(event_block
+  open: (statement (_)+ @name)) @item
+
 ; METHOD run. / METHOD zif_x~save. / FORM x. / FUNCTION z_fm. / MODULE m OUTPUT.
 ([
   (method_block open: (statement . (keyword) @context . [(name) (keyword) (member_access)] @name))

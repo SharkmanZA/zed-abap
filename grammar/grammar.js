@@ -21,8 +21,10 @@
  *
  * Block structure (for the nested outline, auto-indent and text objects):
  *   IF/ELSEIF/ELSE/ENDIF, CASE/WHEN/ENDCASE, LOOP, DO, WHILE, TRY/CATCH/CLEANUP,
- *   METHOD, FORM, FUNCTION, MODULE, CLASS ... DEFINITION (with SECTIONs),
- *   CLASS ... IMPLEMENTATION, INTERFACE.
+ *   SELECT ... ENDSELECT (loops only), AT ... ENDAT, METHOD, FORM, FUNCTION,
+ *   MODULE, CLASS ... DEFINITION (with SECTIONs), CLASS ... IMPLEMENTATION,
+ *   INTERFACE, and event blocks (START-OF-SELECTION, AT SELECTION-SCREEN, ...),
+ *   which have no closing statement and end at the next event, FORM, CLASS, ...
  * A block opens only on a keyword at the START of a statement, so these words
  * stay ordinary names anywhere else (`CALL METHOD`, `COND #( WHEN ...)`,
  * `FOR ... WHILE`, `lo->method`). Closing statements are optional: an unclosed
@@ -60,16 +62,18 @@ const CONSTRUCTORS = [
 // child is (keyword). (Aliasing an inline seq() would not create a node.)
 const BLOCK_KEYWORDS = [
   'if', 'elseif', 'else', 'case', 'when', 'loop', 'do', 'while',
-  'try', 'catch', 'cleanup', 'method', 'form', 'function', 'module',
+  'try', 'catch', 'cleanup', 'method', 'form', 'function', 'module', 'at',
 ];
 
-// Keywords that close a modelled block. (ENDSELECT, ENDAT, ENDON, ... are not
-// here: their blocks aren't modelled, so they stay ordinary statements.)
+// Keywords that close a modelled block. (ENDON, ENDPROVIDE, ENDEXEC, ... are
+// not here: their blocks aren't modelled, so they stay ordinary statements.)
 const END_KEYWORDS = [
   'endif', 'endcase', 'endloop', 'enddo', 'endwhile', 'endtry', 'endcatch',
+  'endselect', 'endat',
   'endmethod', 'endform', 'endfunction', 'endmodule',
   'endclass', 'endinterface',
 ];
+
 
 // Words that open a block. ABAP keywords aren't reserved, so these are also
 // valid variable / method names:
@@ -80,8 +84,8 @@ const END_KEYWORDS = [
 // Clause keywords (ELSE, WHEN, CATCH, ... SECTION) are not included: they must
 // stay able to end the body before them.
 const OPENER_KEYWORDS = [
-  'if', 'case', 'loop', 'do', 'while', 'try', 'method', 'form', 'function', 'module',
-  'class', 'interface',
+  'if', 'case', 'loop', 'do', 'while', 'try', 'at',
+  'method', 'form', 'function', 'module', 'class', 'interface',
 ];
 
 const stmt = ($, k) => alias($[`_s_${k}`], $.statement);
@@ -105,6 +109,10 @@ const block = ($, open) => prec.right(seq(
 ));
 const simpleBlock = ($, k) => block($, stmt($, k));
 
+// A block that ends an event block: the scanner's empty `_event_end` token may
+// come first (see event_block).
+const ender = ($, rule) => seq(optional($._event_end), rule);
+
 module.exports = grammar({
   name: 'abap',
 
@@ -117,9 +125,16 @@ module.exports = grammar({
   // PROCEDURE ...`), up to the line starting with ENDMETHOD: SQLScript
   // statements end in `;`, not `.`. `_catch_system_exceptions` is
   // `CATCH SYSTEM-EXCEPTIONS` (any casing), which opens its own block rather
-  // than a TRY clause.
+  // than a TRY clause. `_select_loop` is the SELECT of a SELECT statement that
+  // needs ENDSELECT (decided by reading the whole statement). `_at_event` is
+  // the AT of AT SELECTION-SCREEN / LINE-SELECTION / USER-COMMAND / PFnn, and
+  // `_event_keyword` INITIALIZATION, START-OF-SELECTION, ... (any casing, only
+  // when a period follows, so `initialization( ).` stays a statement).
+  // `_event_end` is an empty token before a FORM, CLASS, INTERFACE, MODULE,
+  // FUNCTION or METHOD statement that ends an event block (see event_block).
   externals: $ => [
     $.comment, $._call_open, $._error_sentinel, $.sqlscript, $._catch_system_exceptions,
+    $._select_loop, $._at_event, $._event_end, $._event_keyword,
   ],
 
   extras: $ => [/\s/, $.comment],
@@ -131,7 +146,7 @@ module.exports = grammar({
   ],
 
   rules: {
-    source_file: $ => repeat($._item),
+    source_file: $ => repeat(choice($._item, $.event_block)),
 
     // The first word is never a block keyword (that would open a block), so
     // it uses `_token_base`; later words may be (`DATA method TYPE string.`).
@@ -143,13 +158,7 @@ module.exports = grammar({
     // ---- Block structure -------------------------------------------------
 
     _item: $ => choice(
-      $.statement,
-      $.if_block,
-      $.case_block,
-      $.loop_block,
-      $.do_block,
-      $.while_block,
-      $.try_block,
+      $._inner_item,
       $.method_block,
       $.form_block,
       $.function_block,
@@ -157,8 +166,23 @@ module.exports = grammar({
       $.class_definition,
       $.class_implementation,
       $.interface_block,
-      $.catch_system_exceptions_block,
       alias($._s_declaration_only, $.statement),
+    ),
+
+    // Everything an event block can contain: all but the blocks that end it.
+    _inner_item: $ => choice(
+      $.statement,
+      $.if_block,
+      $.case_block,
+      $.loop_block,
+      $.do_block,
+      $.while_block,
+      $.try_block,
+      $.select_block,
+      $.at_block,
+      $.catch_system_exceptions_block,
+      // `form = 1.`, `class->run( ).`: in an event block, FORM / CLASS + name
+      // never get here (the scanner ends the event block first).
       alias($._s_keyword_variable, $.statement),
     ),
 
@@ -197,21 +221,55 @@ module.exports = grammar({
     cleanup_clause: $ => clause($, 'cleanup'),
 
     loop_block: $ => simpleBlock($, 'loop'),
+
+    // SELECT ... ENDSELECT: only a SELECT that needs ENDSELECT (the scanner
+    // reads the statement: not SINGLE, not INTO TABLE without PACKAGE SIZE,
+    // not aggregates only). Every other SELECT is an ordinary statement.
+    select_block: $ => block($, alias($._s_select_loop, $.statement)),
+    _s_select_loop: $ => seq(
+      alias($._select_loop, $.keyword),
+      repeat($._token),
+      '.',
+    ),
+
+    // AT FIRST / AT LAST / AT NEW f / AT END OF f / AT fg ... ENDAT.
+    at_block: $ => simpleBlock($, 'at'),
+
+    // START-OF-SELECTION. ... (up to the next event, FORM, CLASS, ...).
+    // Only at the top level of a file. There is no closing statement: the
+    // body ends at the next event keyword (a token the body can't contain),
+    // or at `_event_end`, which the scanner puts before FORM / CLASS /
+    // INTERFACE / MODULE / FUNCTION / METHOD + name. Those keywords can also
+    // start a statement inside the body (`form( ).`, `class->x( ).`), so the
+    // parser can't end the body on them by itself. `_event_end` starts the
+    // following block (see `ender`) rather than ending the event block: then
+    // the tokens that can follow a statement are the same inside an event
+    // block as at the top level, which keeps the parse table ~25% smaller.
+    event_block: $ => prec.right(seq(
+      field('open', alias($._s_event, $.statement)),
+      optional(field('body', alias($._event_body, $.body))),
+    )),
+    _s_event: $ => seq(
+      alias(choice($._event_keyword, $._at_event), $.keyword),
+      repeat($._token),
+      '.',
+    ),
+    _event_body: $ => prec.right(repeat1($._inner_item)),
     do_block: $ => simpleBlock($, 'do'),
     while_block: $ => simpleBlock($, 'while'),
-    form_block: $ => simpleBlock($, 'form'),
-    function_block: $ => simpleBlock($, 'function'),
-    module_block: $ => simpleBlock($, 'module'),
+    form_block: $ => ender($, simpleBlock($, 'form')),
+    function_block: $ => ender($, simpleBlock($, 'function')),
+    module_block: $ => ender($, simpleBlock($, 'module')),
 
     // METHOD m. ... ENDMETHOD.  /  METHOD m BY DATABASE PROCEDURE ... <SQLScript> ENDMETHOD.
-    method_block: $ => choice(
+    method_block: $ => ender($, choice(
       simpleBlock($, 'method'),
       prec.right(seq(
         field('open', alias($._s_method_by, $.statement)),
         optional(field('body', $.sqlscript)),
         optional(field('close', $._end)),
       )),
-    ),
+    )),
     _s_method_by: $ => seq(
       alias($._kw_method, $.keyword),
       repeat($._token),
@@ -229,13 +287,13 @@ module.exports = grammar({
     ),
 
     // CLASS lcl DEFINITION [options]. ... PUBLIC SECTION. ... ENDCLASS.
-    class_definition: $ => block($, alias($._s_class_definition, $.statement)),
+    class_definition: $ => ender($, block($, alias($._s_class_definition, $.statement))),
     section: $ => prec.right(seq(
       field('open', alias($._s_section, $.statement)),
       optional(field('body', $.body)),
     )),
-    class_implementation: $ => block($, alias($._s_class_implementation, $.statement)),
-    interface_block: $ => block($, alias($._s_interface, $.statement)),
+    class_implementation: $ => ender($, block($, alias($._s_class_implementation, $.statement))),
+    interface_block: $ => ender($, block($, alias($._s_interface, $.statement))),
 
     _s_class_definition: $ => seq(
       alias($._kw_class, $.keyword),
@@ -268,7 +326,7 @@ module.exports = grammar({
     //   CLASS lcl DEFINITION DEFERRED [PUBLIC]. / CLASS lcl DEFINITION LOAD.
     //   CLASS lcl DEFINITION LOCAL FRIENDS ... / INTERFACE zif DEFERRED|LOAD.
     // plus CLASS statements in casings the grammar doesn't tokenise.
-    _s_declaration_only: $ => choice(
+    _s_declaration_only: $ => ender($, choice(
       seq(
         alias($._kw_class, $.keyword),
         field('name', $.name),
@@ -285,7 +343,7 @@ module.exports = grammar({
         '.',
       ),
       seq(alias($._kw_class, $.keyword), repeat($._token), '.'),
-    ),
+    )),
 
     // `method = 'GET'.`, `form->run( ).`, `interface = 'X'.`: a variable that
     // shares a block keyword's name. A block statement never continues with an
@@ -520,6 +578,9 @@ module.exports = grammar({
     _kw_catch: _ => kw('catch'),
     _kw_cleanup: _ => kw('cleanup', 'CleanUp'),
     _kw_endtry: _ => kw('endtry', 'EndTry'),
+    _kw_endselect: _ => kw('endselect', 'EndSelect'),
+    _kw_at: _ => kw('at'),
+    _kw_endat: _ => kw('endat', 'EndAt'),
     _kw_method: _ => kw('method'),
     _kw_endmethod: _ => kw('endmethod', 'EndMethod'),
     _kw_form: _ => kw('form'),

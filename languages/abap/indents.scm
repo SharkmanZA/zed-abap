@@ -17,6 +17,8 @@
   (loop_block close: (_)? @end)
   (do_block close: (_)? @end)
   (while_block close: (_)? @end)
+  (select_block close: (_)? @end)
+  (at_block close: (_)? @end)
   (method_block close: (_)? @end)
   (form_block close: (_)? @end)
   (function_block close: (_)? @end)
@@ -66,6 +68,19 @@
     (section)
     (statement)
   ] @end)
+
+; Event blocks (START-OF-SELECTION, AT SELECTION-SCREEN, ...) have no closing
+; statement. Their range runs up to the next event, FORM, CLASS, ... (skipping
+; comments, which may sit on the last statement's line), so Enter after an
+; event's last statement stays in the event. The last event in a file has
+; nothing after it: there increase_indent_pattern indents its first line, and
+; later lines keep the line above's indentation.
+(source_file
+  (event_block (body)) @indent
+  .
+  (comment)*
+  .
+  (_) @end)
 
 ; The last clause of an unclosed block: up to the end of the clause.
 [

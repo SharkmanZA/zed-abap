@@ -1,0 +1,922 @@
+==================
+SELECT loops (need ENDSELECT)
+==================
+
+SELECT * FROM spfli.
+ENDSELECT.
+SELECT carrid connid FROM spfli INTO (lv_c, lv_n) WHERE carrid = 'LH'.
+ENDSELECT.
+SELECT * INTO ls FROM spfli UP TO 10 ROWS.
+ENDSELECT.
+SELECT * FROM spfli INTO TABLE @lt PACKAGE SIZE 100.
+ENDSELECT.
+SELECT carrid, COUNT(*) AS n FROM spfli GROUP BY carrid INTO @DATA(ls_n).
+ENDSELECT.
+SELECT FROM spfli FIELDS carrid, connid WHERE carrid = @lv INTO @DATA(ls_f).
+ENDSELECT.
+select * from spfli into @ls.
+endselect.
+
+---
+
+(source_file
+  (select_block
+    (statement
+      (keyword)
+      (operator)
+      (name)
+      (name))
+    (statement
+      (keyword)))
+  (select_block
+    (statement
+      (keyword)
+      (name)
+      (name)
+      (name)
+      (name)
+      (name)
+      (parenthesized
+        (name)
+        (name))
+      (name)
+      (name)
+      (operator)
+      (string))
+    (statement
+      (keyword)))
+  (select_block
+    (statement
+      (keyword)
+      (operator)
+      (name)
+      (name)
+      (name)
+      (name)
+      (name)
+      (keyword)
+      (number)
+      (name))
+    (statement
+      (keyword)))
+  (select_block
+    (statement
+      (keyword)
+      (operator)
+      (name)
+      (name)
+      (name)
+      (table_type
+        (keyword))
+      (operator)
+      (name)
+      (name)
+      (name)
+      (number))
+    (statement
+      (keyword)))
+  (select_block
+    (statement
+      (keyword)
+      (name)
+      (access
+        (name)
+        (operator))
+      (name)
+      (name)
+      (name)
+      (name)
+      (name)
+      (name)
+      (name)
+      (name)
+      (operator)
+      (access
+        (name)
+        (name)))
+    (statement
+      (keyword)))
+  (select_block
+    (statement
+      (keyword)
+      (name)
+      (name)
+      (name)
+      (name)
+      (name)
+      (name)
+      (name)
+      (operator)
+      (operator)
+      (name)
+      (name)
+      (operator)
+      (access
+        (name)
+        (name)))
+    (statement
+      (keyword)))
+  (select_block
+    (statement
+      (keyword)
+      (operator)
+      (name)
+      (name)
+      (name)
+      (operator)
+      (name))
+    (statement
+      (keyword))))
+
+==================
+SELECT statements without ENDSELECT
+==================
+
+SELECT SINGLE * FROM spfli INTO @ls WHERE carrid = 'LH'.
+SELECT * FROM spfli INTO TABLE @lt.
+SELECT * FROM spfli APPENDING CORRESPONDING FIELDS OF TABLE lt.
+SELECT COUNT(*) FROM spfli.
+SELECT COUNT( DISTINCT carrid ) AS n, MAX( distance ) FROM spfli INTO (@lv_n, @lv_max).
+SELECT FROM spfli FIELDS MAX( distance ) INTO @lv_max.
+SELECT carrid FROM spfli WHERE carrid IN ( SELECT carrid FROM scarr ) INTO TABLE @lt.
+OPEN CURSOR @lv_cursor FOR SELECT * FROM spfli.
+select = 1.
+SELECT-OPTIONS s_carr FOR spfli-carrid.
+
+---
+
+(source_file
+  (statement
+    (name)
+    (name)
+    (operator)
+    (name)
+    (name)
+    (name)
+    (operator)
+    (name)
+    (name)
+    (name)
+    (operator)
+    (string))
+  (statement
+    (name)
+    (operator)
+    (name)
+    (name)
+    (name)
+    (table_type
+      (keyword))
+    (operator)
+    (name))
+  (statement
+    (name)
+    (operator)
+    (name)
+    (name)
+    (name)
+    (keyword)
+    (name)
+    (keyword)
+    (table_type
+      (keyword))
+    (name))
+  (statement
+    (name)
+    (access
+      (name)
+      (operator))
+    (name)
+    (name))
+  (statement
+    (name)
+    (call
+      (name)
+      (name)
+      (name))
+    (name)
+    (name)
+    (call
+      (name)
+      (name))
+    (name)
+    (name)
+    (name)
+    (parenthesized
+      (operator)
+      (name)
+      (operator)
+      (name)))
+  (statement
+    (name)
+    (name)
+    (name)
+    (name)
+    (call
+      (name)
+      (name))
+    (name)
+    (operator)
+    (name))
+  (statement
+    (name)
+    (name)
+    (name)
+    (name)
+    (name)
+    (name)
+    (name)
+    (parenthesized
+      (name)
+      (name)
+      (name)
+      (name))
+    (name)
+    (table_type
+      (keyword))
+    (operator)
+    (name))
+  (statement
+    (name)
+    (name)
+    (operator)
+    (name)
+    (name)
+    (name)
+    (operator)
+    (name)
+    (name))
+  (statement
+    (name)
+    (operator)
+    (number))
+  (statement
+    (name)
+    (name)
+    (name)
+    (name)))
+
+==================
+SELECT: strings and comments are not read as clauses
+==================
+
+SELECT * FROM spfli " INTO TABLE in a comment
+* INTO TABLE in a comment line
+  WHERE carrid = 'INTO TABLE'
+  INTO @ls.
+ENDSELECT.
+
+---
+
+(source_file
+  (select_block
+    (statement
+      (keyword)
+      (operator)
+      (name)
+      (name)
+      (comment)
+      (comment)
+      (name)
+      (name)
+      (operator)
+      (string)
+      (name)
+      (operator)
+      (name))
+    (statement
+      (keyword))))
+
+==================
+Native SQL SELECT inside EXEC SQL
+==================
+
+EXEC SQL.
+  SELECT carrid INTO :lv FROM spfli WHERE connid = 17
+ENDEXEC.
+WRITE lv.
+
+---
+
+(source_file
+  (statement
+    (name)
+    (name))
+  (statement
+    (name)
+    (name)
+    (name)
+    (name)
+    (name)
+    (name)
+    (name)
+    (name)
+    (operator)
+    (number)
+    (name))
+  (statement
+    (name)
+    (name)))
+
+==================
+AT ... ENDAT inside LOOP
+==================
+
+LOOP AT lt INTO ls.
+  AT FIRST.
+    WRITE 'first'.
+  ENDAT.
+  AT NEW carrid.
+    WRITE ls-carrid.
+  ENDAT.
+  AT END OF connid.
+    SUM.
+  ENDAT.
+  AT LAST.
+  ENDAT.
+ENDLOOP.
+LOOP.
+  AT fg_flight WITH fg_booking.
+  ENDAT.
+ENDLOOP.
+
+---
+
+(source_file
+  (loop_block
+    (statement
+      (keyword)
+      (name)
+      (name)
+      (name)
+      (name))
+    (body
+      (at_block
+        (statement
+          (keyword)
+          (name))
+        (body
+          (statement
+            (name)
+            (string)))
+        (statement
+          (keyword)))
+      (at_block
+        (statement
+          (keyword)
+          (keyword)
+          (name))
+        (body
+          (statement
+            (name)
+            (name)))
+        (statement
+          (keyword)))
+      (at_block
+        (statement
+          (keyword)
+          (name)
+          (keyword)
+          (name))
+        (body
+          (statement
+            (name)))
+        (statement
+          (keyword)))
+      (at_block
+        (statement
+          (keyword)
+          (name))
+        (statement
+          (keyword))))
+    (statement
+      (keyword)))
+  (loop_block
+    (statement
+      (keyword))
+    (body
+      (at_block
+        (statement
+          (keyword)
+          (name)
+          (name)
+          (name))
+        (statement
+          (keyword))))
+    (statement
+      (keyword))))
+
+==================
+AT as a plain word
+==================
+
+at = 1.
+SPLIT lv AT ',' INTO a b.
+WRITE AT 10 lv.
+
+---
+
+(source_file
+  (statement
+    (name)
+    (operator)
+    (number))
+  (statement
+    (name)
+    (name)
+    (name)
+    (string)
+    (name)
+    (name)
+    (name))
+  (statement
+    (name)
+    (name)
+    (number)
+    (name)))
+
+==================
+Event blocks
+==================
+
+REPORT zdemo.
+PARAMETERS p_carr TYPE s_carr_id.
+
+LOAD-OF-PROGRAM.
+  lv = 1.
+
+INITIALIZATION.
+  p_carr = 'LH'.
+
+AT SELECTION-SCREEN OUTPUT.
+  LOOP AT SCREEN.
+  ENDLOOP.
+
+AT SELECTION-SCREEN ON p_carr.
+  CHECK p_carr IS NOT INITIAL.
+
+START-OF-SELECTION.
+  SELECT * FROM spfli INTO @ls WHERE carrid = @p_carr.
+    WRITE ls-connid.
+  ENDSELECT.
+  LOOP AT lt INTO ls.
+    AT NEW carrid.
+    ENDAT.
+  ENDLOOP.
+
+END-OF-SELECTION.
+  PERFORM show.
+
+TOP-OF-PAGE DURING LINE-SELECTION.
+  WRITE 'Details'.
+
+AT LINE-SELECTION.
+  WRITE sy-lisel.
+
+AT USER-COMMAND.
+
+AT PF13.
+  LEAVE PROGRAM.
+
+---
+
+(source_file
+  (statement
+    (name)
+    (name))
+  (statement
+    (name)
+    (name)
+    (type_spec
+      (keyword)
+      (type_name
+        (name))))
+  (event_block
+    (statement
+      (keyword))
+    (body
+      (statement
+        (name)
+        (operator)
+        (number))))
+  (event_block
+    (statement
+      (keyword))
+    (body
+      (statement
+        (name)
+        (operator)
+        (string))))
+  (event_block
+    (statement
+      (keyword)
+      (name)
+      (name))
+    (body
+      (loop_block
+        (statement
+          (keyword)
+          (name)
+          (name))
+        (statement
+          (keyword)))))
+  (event_block
+    (statement
+      (keyword)
+      (name)
+      (name)
+      (name))
+    (body
+      (statement
+        (name)
+        (name)
+        (name)
+        (name)
+        (name))))
+  (event_block
+    (statement
+      (keyword))
+    (body
+      (select_block
+        (statement
+          (keyword)
+          (operator)
+          (name)
+          (name)
+          (name)
+          (operator)
+          (name)
+          (name)
+          (name)
+          (operator)
+          (operator)
+          (name))
+        (body
+          (statement
+            (name)
+            (name)))
+        (statement
+          (keyword)))
+      (loop_block
+        (statement
+          (keyword)
+          (name)
+          (name)
+          (name)
+          (name))
+        (body
+          (at_block
+            (statement
+              (keyword)
+              (keyword)
+              (name))
+            (statement
+              (keyword))))
+        (statement
+          (keyword)))))
+  (event_block
+    (statement
+      (keyword))
+    (body
+      (statement
+        (name)
+        (name))))
+  (event_block
+    (statement
+      (keyword)
+      (name)
+      (name))
+    (body
+      (statement
+        (name)
+        (string))))
+  (event_block
+    (statement
+      (keyword)
+      (name))
+    (body
+      (statement
+        (name)
+        (name))))
+  (event_block
+    (statement
+      (keyword)
+      (name)))
+  (event_block
+    (statement
+      (keyword)
+      (name))
+    (body
+      (statement
+        (name)
+        (name)))))
+
+==================
+Event blocks end at FORM, CLASS and friends
+==================
+
+START-OF-SELECTION.
+  form( ).
+  class->run( ).
+  form = 1.
+*&---------------------------------------------------------------------*
+*& Form show
+*&---------------------------------------------------------------------*
+FORM show.
+  WRITE 'x'.
+ENDFORM.
+INITIALIZATION.
+CLASS lcl DEFINITION DEFERRED.
+END-OF-SELECTION.
+  WRITE 'y'.
+MODULE status_0100 OUTPUT.
+ENDMODULE.
+
+---
+
+(source_file
+  (event_block
+    (statement
+      (keyword))
+    (body
+      (statement
+        (call
+          (name)))
+      (statement
+        (name)
+        (operator)
+        (call
+          (name)))
+      (statement
+        (name)
+        (operator)
+        (number))))
+  (comment)
+  (comment)
+  (comment)
+  (form_block
+    (statement
+      (keyword)
+      (name))
+    (body
+      (statement
+        (name)
+        (string)))
+    (statement
+      (keyword)))
+  (event_block
+    (statement
+      (keyword)))
+  (statement
+    (keyword)
+    (name)
+    (keyword)
+    (keyword))
+  (event_block
+    (statement
+      (keyword))
+    (body
+      (statement
+        (name)
+        (string))))
+  (module_block
+    (statement
+      (keyword)
+      (name)
+      (name))
+    (statement
+      (keyword))))
+
+==================
+SELECT: aggregates inside expressions are one row
+==================
+
+SELECT COALESCE( MAX( seqnr ), 0 ) FROM ztab INTO @DATA(lv1).
+SELECT CAST( COUNT(*) AS INT8 ) FROM ztab INTO @DATA(lv2).
+SELECT SUM( a ) + SUM( b ) AS total FROM ztab INTO @DATA(lv3).
+SELECT CASE WHEN MAX( a ) > 0 THEN 1 ELSE 0 END FROM ztab INTO @DATA(lv4).
+SELECT COALESCE( MAX( a ), b ) FROM ztab INTO @DATA(ls5).
+ENDSELECT.
+
+---
+
+(source_file
+  (statement
+    (name)
+    (call
+      (name)
+      (call
+        (name)
+        (name))
+      (number))
+    (name)
+    (name)
+    (name)
+    (operator)
+    (access
+      (name)
+      (name)))
+  (statement
+    (name)
+    (call
+      (name)
+      (access
+        (name)
+        (operator))
+      (name)
+      (name))
+    (name)
+    (name)
+    (name)
+    (operator)
+    (access
+      (name)
+      (name)))
+  (statement
+    (name)
+    (call
+      (name)
+      (name))
+    (operator)
+    (call
+      (name)
+      (name))
+    (name)
+    (name)
+    (name)
+    (name)
+    (name)
+    (operator)
+    (access
+      (name)
+      (name)))
+  (statement
+    (name)
+    (name)
+    (name)
+    (call
+      (name)
+      (name))
+    (operator)
+    (number)
+    (name)
+    (number)
+    (name)
+    (number)
+    (name)
+    (name)
+    (name)
+    (name)
+    (operator)
+    (access
+      (name)
+      (name)))
+  (select_block
+    (statement
+      (keyword)
+      (call
+        (name)
+        (call
+          (name)
+          (name))
+        (name))
+      (name)
+      (name)
+      (name)
+      (operator)
+      (access
+        (name)
+        (name)))
+    (statement
+      (keyword))))
+
+==================
+SELECT: templates and dotted native SQL
+==================
+
+SELECT * FROM ztab WHERE x = @( |{ |a| }| ) INTO @DATA(ls).
+ENDSELECT.
+EXEC SQL.
+  SELECT f INTO :lv FROM t a WHERE a.g = 1.5
+ENDEXEC.
+
+---
+
+(source_file
+  (select_block
+    (statement
+      (keyword)
+      (operator)
+      (name)
+      (name)
+      (name)
+      (name)
+      (operator)
+      (operator)
+      (parenthesized
+        (template
+          (embedded_expression
+            (template
+              (template_content)))))
+      (name)
+      (operator)
+      (access
+        (name)
+        (name)))
+    (statement
+      (keyword)))
+  (statement
+    (name)
+    (name))
+  (statement
+    (name)
+    (name)
+    (name)
+    (name)
+    (name)
+    (name)
+    (name)
+    (name)
+    (name))
+  (statement
+    (name)
+    (operator)
+    (number))
+  (statement
+    (number)
+    (name)))
+
+==================
+Event words as method and variable names
+==================
+
+CLASS lcl IMPLEMENTATION.
+  METHOD initialization.
+    initialization( ).
+    initialization = abap_true.
+  ENDMETHOD.
+ENDCLASS.
+
+---
+
+(source_file
+  (class_implementation
+    (statement
+      (keyword)
+      (name)
+      (keyword))
+    (body
+      (method_block
+        (statement
+          (keyword)
+          (name))
+        (body
+          (statement
+            (call
+              (name)))
+          (statement
+            (name)
+            (operator)
+            (name)))
+        (statement
+          (keyword))))
+    (statement
+      (keyword))))
+
+==================
+Event keywords in any casing, chained CLASS and odd casing in events
+==================
+
+start-of-selection.
+  WRITE 1.
+CLASS: lcl1 DEFINITION DEFERRED.
+Top-Of-Page.
+  fOrM = 1.
+end-of-page.
+
+---
+
+(source_file
+  (event_block
+    (statement
+      (keyword))
+    (body
+      (statement
+        (name)
+        (number))))
+  (statement
+    (keyword)
+    (name)
+    (name)
+    (name))
+  (event_block
+    (statement
+      (keyword))
+    (body
+      (statement
+        (name)
+        (operator)
+        (number))))
+  (event_block
+    (statement
+      (keyword))))
