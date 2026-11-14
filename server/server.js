@@ -5,13 +5,16 @@
 //
 // Project model, matching the abaplint CLI:
 // - The config is abaplint.json / abaplint.jsonc / abaplint.json5 in the
-//   workspace root, or abaplint's default config if there is none.
+//   workspace root. Without one, abaplint's default config with only the
+//   rules that find real errors (DEFAULT_RULES), not its style rules.
 // - The files matching `global.files` (relative to the root) are loaded into
 //   one registry, so references between objects resolve. Local folder
 //   dependencies are loaded first, as dependencies (an object that is also in
 //   the project is the project's).
 // - Registry filenames are absolute paths with `/` separators, so `exclude`
 //   and `noIssues` patterns see the same names as with the CLI.
+// - An object file outside `global.files` brings its abapGit package folder
+//   into the registry when it is opened, so the objects next to it resolve.
 // Open documents replace their file's disk contents in the registry. A file
 // without an abapGit name (`report.abap` instead of `zreport.prog.abap`) is
 // checked on its own, as a program.
@@ -37,10 +40,28 @@ const { TextDocument } = require("vscode-languageserver-textdocument");
 const CONFIG_NAMES = ["abaplint.json", "abaplint.jsonc", "abaplint.json5"];
 // abaplint's default for `global.files` and for a dependency's `files`.
 const DEFAULT_FILES = "/src/**/*.*";
+// The rules checked without a config: errors, not style.
+const DEFAULT_RULES = [
+  "parser_error",
+  "check_syntax",
+  "unknown_types",
+  "implement_methods",
+  "method_implemented_twice",
+  "superclass_final",
+  "cyclic_oo",
+  "check_include",
+  "xml_consistency",
+];
+// Marks an abapGit package folder.
+const PACKAGE_FILE = "package.devc.xml";
 // Delay between the last edit and recomputing diagnostics.
 const DEBOUNCE_MS = 300;
 // macOS and Windows file systems ignore case by default.
 const CASE_INSENSITIVE = process.platform === "darwin" || process.platform === "win32";
+
+// Used without a config, with a config that can't be used, and for files
+// outside every workspace root.
+const defaultConfig = makeDefaultConfig();
 
 // Set by main(); the helpers below also work without it (tests).
 let connection;
@@ -202,7 +223,10 @@ function findFiles(prefix, glob) {
   const matcher = globToRegExp(glob, prefix);
   const found = [];
   const seen = new Set();
-  const walk = (dir) => {
+  // Without `**`, the glob can't match below a fixed depth.
+  const base = globBase(glob);
+  const maxDepth = glob.includes("**") ? Infinity : glob.split("/").length - base.split("/").length - 1;
+  const walk = (dir, depth) => {
     let real;
     try {
       real = fs.realpathSync(dir);
@@ -236,14 +260,41 @@ function findFiles(prefix, glob) {
         }
       }
       if (isDirectory) {
-        walk(full);
+        if (depth < maxDepth) {
+          walk(full, depth + 1);
+        }
       } else if (isFile && matcher.test(full)) {
         found.push(full);
       }
     }
   };
-  walk(prefix + globBase(glob) || "/");
+  walk(prefix + base || "/", 0);
   return found;
+}
+
+function dirname(filename) {
+  const slash = filename.lastIndexOf("/");
+  return slash <= 0 ? "/" : filename.slice(0, slash);
+}
+
+/**
+ * The abapGit package folder of `filename` (in `root`): the top of the chain
+ * of folders holding package.devc.xml, with its subfolders. A folder without
+ * one is just that folder.
+ */
+function packageFolder(filename, root) {
+  let dir = dirname(filename);
+  if (!fs.existsSync(`${dir}/${PACKAGE_FILE}`)) {
+    return { dir, glob: "/*.*" };
+  }
+  const inRoot = (candidate) => fileKey(`${candidate}/`).startsWith(fileKey(`${root}/`));
+  for (let parent = dirname(dir); parent !== dir && inRoot(parent); parent = dirname(parent)) {
+    if (!fs.existsSync(`${parent}/${PACKAGE_FILE}`)) {
+      break;
+    }
+    dir = parent;
+  }
+  return { dir, glob: "/**/*.*" };
 }
 
 function readText(filename) {
@@ -289,6 +340,13 @@ function invalidRegexes(config) {
   return problems;
 }
 
+/** abaplint's default config with only DEFAULT_RULES. */
+function makeDefaultConfig() {
+  const config = abaplint.Config.getDefault().get();
+  config.rules = Object.fromEntries(DEFAULT_RULES.map((rule) => [rule, true]));
+  return new abaplint.Config(JSON.stringify(config));
+}
+
 /** `syntax.version` as written in a config's text (JSON5, like abaplint). */
 function rawSyntaxVersion(text) {
   try {
@@ -300,8 +358,8 @@ function rawSyntaxVersion(text) {
 }
 
 /**
- * Reads the root's config. Falls back to abaplint's default config (with a
- * warning) if it can't be used.
+ * Reads the root's config. Falls back to the default config (with a warning)
+ * if it can't be used.
  */
 function readConfig(root) {
   for (const name of CONFIG_NAMES) {
@@ -314,13 +372,13 @@ function readConfig(root) {
     try {
       config = new abaplint.Config(text);
     } catch (error) {
-      warn(`${filename}: ${errorMessage(error)}. Using abaplint's default config.`);
-      return abaplint.Config.getDefault();
+      warn(`${filename}: ${errorMessage(error)}. Using the default config.`);
+      return defaultConfig;
     }
     const problems = invalidRegexes(config);
     if (problems.length > 0) {
-      warn(`${filename}: ${problems.join("; ")}. Using abaplint's default config.`);
-      return abaplint.Config.getDefault();
+      warn(`${filename}: ${problems.join("; ")}. Using the default config.`);
+      return defaultConfig;
     }
     // Like the CLI. abaplint itself replaces an unknown version with the
     // newest release, so this reads the raw text.
@@ -334,8 +392,8 @@ function readConfig(root) {
     log(`Using config ${filename}`);
     return config;
   }
-  log(`No ${CONFIG_NAMES.join(" / ")} in ${root}, using abaplint's default config`);
-  return abaplint.Config.getDefault();
+  log(`No ${CONFIG_NAMES.join(" / ")} in ${root}, using the default config (${DEFAULT_RULES.join(", ")})`);
+  return defaultConfig;
 }
 
 // ---------------------------------------------------------------------------
@@ -393,7 +451,8 @@ function standaloneDiagnostics(filename, text, config) {
   }
   const registry = new abaplint.Registry(config);
   registry.addFile(new abaplint.MemoryFile(name, text));
-  const object = registry.findObjectForFile(registry.getFileByName(name));
+  const file = registry.getFileByName(name); // undefined if global.exclude matches
+  const object = file === undefined ? undefined : registry.findObjectForFile(file);
   return object === undefined ? [] : toDiagnostics(registry.findIssuesObject(object), name);
 }
 
@@ -413,16 +472,24 @@ class Project {
    * loaded (abaplint throws on some settings), the default config is used.
    */
   load() {
+    const folders = this.folders ?? [];
     let state;
     const config = readConfig(this.root);
     try {
       state = this.build(config);
     } catch (error) {
-      warn(`${this.root}: ${errorMessage(error)}. Using abaplint's default config.`);
-      state = this.build(abaplint.Config.getDefault());
+      warn(`${this.root}: ${errorMessage(error)}. Using the default config.`);
+      state = this.build(defaultConfig);
     }
     Object.assign(this, state);
     log(`${this.root}: ${state.projectFiles} files, ${state.dependencyFiles.size} dependency files`);
+    for (const folder of folders) {
+      try {
+        this.addFolder(folder);
+      } catch (error) {
+        log(`${folder.dir}: ${errorDetail(error)}`);
+      }
+    }
   }
 
   build(config) {
@@ -455,8 +522,12 @@ class Project {
       dependencyFiles: new Set(
         dependencies.map((file) => fileKey(file.getFilename())).filter((key) => !projectKeys.has(key)),
       ),
-      // Object files outside `global.files` added while open in an editor.
+      // Object files outside `global.files`: open in an editor, or in the
+      // package folder of one that was.
       extraFiles: new Set(),
+      // Package folders loaded for files outside `global.files`, each
+      // `{ dir, glob, matcher }`.
+      folders: [],
       // Bumped on every registry change. abaplint caches each object's syntax
       // result until that object changes, so an object checked before the
       // last change is marked dirty before checking it again: the change may
@@ -490,19 +561,90 @@ class Project {
     return this.extraFiles.has(fileKey(filename));
   }
 
+  /** Whether `filename` is in a package folder loaded by addFolder(). */
+  isFolderFile(filename) {
+    return this.folders.some((folder) => folder.matcher.test(filename));
+  }
+
   isConfigFile(filename) {
     return CONFIG_NAMES.some((name) => fileKey(filename) === fileKey(`${this.root}/${name}`));
   }
 
   /**
-   * Whether an editor's copy of an object file outside `global.files` can be
-   * added to the project. Not if the project already has that object from
-   * other files (a backup or a nested copy would merge into it).
+   * Whether an object file outside `global.files` can be added to the
+   * project: only as a new object, or as another file of an object already
+   * added from the same folder. A backup or another copy of an object would
+   * merge into it.
    */
   canAdd(filename) {
+    const object = this.objectOf(filename);
+    const dir = fileKey(dirname(filename));
+    return (
+      object === undefined ||
+      object
+        .getFiles()
+        .every((other) => this.isExtraFile(other.getFilename()) && fileKey(dirname(other.getFilename())) === dir)
+    );
+  }
+
+  objectOf(filename) {
     const file = new abaplint.MemoryFile(filename, "");
-    const object = this.registry.getObject(file.getObjectType(), file.getObjectName());
-    return object === undefined || this.registry.getFileByName(filename) !== undefined;
+    return this.registry.getObject(file.getObjectType(), file.getObjectName());
+  }
+
+  /**
+   * Removes the files of `filename`'s object that came from outside
+   * `global.files`, so a project file for that object doesn't merge with
+   * them. They are then checked on their own.
+   */
+  evictExtras(filename) {
+    for (const other of this.objectOf(filename)?.getFiles() ?? []) {
+      if (this.isExtraFile(other.getFilename())) {
+        this.extraFiles.delete(fileKey(other.getFilename()));
+        this.removeFile(other.getFilename());
+      }
+    }
+  }
+
+  /**
+   * Adds an object file outside `global.files` from disk, if it can be.
+   * Returns true if the registry changed.
+   */
+  addExtraFile(filename) {
+    if (this.isProjectFile(filename) || this.isInDependencyFolder(filename) || this.isDependencyFile(filename)) {
+      return false;
+    }
+    if (!this.isExtraFile(filename) && !this.canAdd(filename)) {
+      return false;
+    }
+    const text = readText(filename);
+    if (text === undefined) {
+      return false;
+    }
+    this.extraFiles.add(fileKey(filename));
+    return this.setFile(filename, text);
+  }
+
+  /**
+   * Loads the object files of a package folder (from packageFolder()) and
+   * keeps them in step with the disk. Returns true if the registry changed.
+   */
+  addFolder({ dir, glob }) {
+    if (this.folders.some((folder) => folder.dir === dir && folder.glob === glob)) {
+      return false;
+    }
+    let changed = false;
+    for (const filename of findFiles(dir, glob).filter(isObjectFilename)) {
+      try {
+        changed = this.addExtraFile(filename) || changed;
+      } catch (error) {
+        log(`${filename}: ${errorMessage(error)}`);
+      }
+    }
+    // Only now: isFolderFile() is true for its files once they're loaded.
+    this.folders.push({ dir, glob, matcher: globToRegExp(glob, dir) });
+    log(`${dir}: loaded the package folder of a file outside global.files`);
+    return changed;
   }
 
   changed(filename) {
@@ -611,8 +753,6 @@ class Project {
 }
 
 let projects = [];
-// Config for files outside every workspace root.
-const defaultConfig = abaplint.Config.getDefault();
 
 function projectFor(filename) {
   let best;
@@ -731,15 +871,27 @@ function syncDocument(document, only) {
   if (project === undefined || (only !== undefined && project !== only)) {
     return false;
   }
+  let changed = false;
   if (!project.isProjectFile(filename) && !project.isExtraFile(filename)) {
-    // Dependencies are read-only; other copies of project objects are
-    // checked on their own.
-    if (project.isDependencyFile(filename) || !project.canAdd(filename)) {
+    // Dependencies are read-only.
+    if (project.isDependencyFile(filename)) {
       return false;
     }
-    project.extraFiles.add(fileKey(filename));
+    // Other copies of project objects are checked on their own, without
+    // bringing in their folder.
+    if (!project.canAdd(filename)) {
+      return false;
+    }
+    // The objects next to it, so references to them resolve.
+    changed = project.addFolder(packageFolder(filename, project.root));
+    if (!project.isExtraFile(filename)) {
+      if (!project.canAdd(filename)) {
+        return changed;
+      }
+      project.extraFiles.add(fileKey(filename));
+    }
   }
-  return project.setFile(filename, document.getText());
+  return project.setFile(filename, document.getText()) || changed;
 }
 
 function onDidChangeContent(event) {
@@ -763,7 +915,7 @@ function onDidClose(event) {
     return;
   }
   try {
-    if (project.isProjectFile(filename)) {
+    if (project.isProjectFile(filename) || (project.isFolderFile(filename) && readText(filename) !== undefined)) {
       project.reloadFile(filename);
     } else {
       project.extraFiles.delete(fileKey(filename));
@@ -798,10 +950,34 @@ function onWatchedFileChange(change) {
   }
   const key = fileKey(filename);
   const open = documents.all().some((document) => fileKey(uriToFilename(document.uri) ?? "") === key);
-  if (open || !isObjectFilename(filename) || !project.isProjectFile(filename)) {
+  if (open || !isObjectFilename(filename)) {
     // An open document's editor contents win until it is closed.
     return undefined;
   }
+  if (basename(filename) === PACKAGE_FILE && !project.isProjectFile(filename)) {
+    // A new package.devc.xml can make an open file's package folder bigger.
+    let changed = false;
+    for (const document of documents.all()) {
+      const open = uriToFilename(document.uri);
+      if (open !== undefined && project.isExtraFile(open)) {
+        changed = project.addFolder(packageFolder(open, project.root)) || changed;
+      }
+    }
+    return changed ? "file" : undefined;
+  }
+  if (!project.isProjectFile(filename)) {
+    if (!project.isFolderFile(filename)) {
+      return undefined;
+    }
+    if (project.isExtraFile(filename) && readText(filename) === undefined) {
+      project.extraFiles.delete(key);
+      project.removeFile(filename);
+      return "file";
+    }
+    return project.addExtraFile(filename) ? "file" : undefined;
+  }
+  // The project's own copy of an object wins over one from a package folder.
+  project.evictExtras(filename);
   // Also for Deleted: after a rename that only changes case, the file still
   // exists under its new name, which the registry treats as the same file.
   project.reloadFile(filename);

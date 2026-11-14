@@ -165,6 +165,13 @@ test("a file without an abapGit name is checked on its own as a program", async 
   close("scratch.abap");
 });
 
+test("a loose file matched by global.exclude has no findings", async () => {
+  const excluded = nextDiagnostics(uriOf("legacy/old.abap"));
+  open("legacy/old.abap", "WRITE lv_unknown.\n");
+  assert.deepEqual(await excluded, []);
+  close("legacy/old.abap");
+});
+
 test("loose files with the same name don't interfere", async () => {
   const a = nextDiagnostics(uriOf("a/same.abap"));
   const b = nextDiagnostics(uriOf("b/same.abap"));
@@ -289,9 +296,8 @@ test("an abapGit-named class outside every project is checked as a class", async
     connection.sendNotification("textDocument/didOpen", {
       textDocument: { uri, languageId: "abap", version: version++, text: fs.readFileSync(path.join(root, "src/zcl_greeter.clas.abap"), "utf8") },
     });
-    const found = codes(await result);
-    assert.ok(!found.includes("global_class"), found.join());
-    assert.ok(!found.includes("main_file_contents"), found.join());
+    // Without a config, only errors are reported, not style.
+    assert.deepEqual(codes(await result), []);
     connection.sendNotification("textDocument/didClose", { textDocument: { uri } });
   } finally {
     fs.rmSync(outside, { recursive: true, force: true });
@@ -328,7 +334,9 @@ test("a config change reloads the project", async () => {
 });
 
 test("an unusable config falls back to the default config, with a warning", async () => {
-  const program = uriOf("src/zgreet.prog.abap");
+  // zquiet's error is hidden by the config's noIssues.
+  const program = uriOf("src/zquiet.prog.abap");
+  open("src/zquiet.prog.abap", "REPORT zquiet.\nWRITE lv_unknown.\n");
   try {
     for (const [i, edit] of [
       () => "{ not json",
@@ -340,9 +348,9 @@ test("an unusable config falls back to the default config, with a warning", asyn
       },
     ].entries()) {
       const before = messages.length;
-      const fallback = nextDiagnostics(program, (d) => codes(d).includes("no_prefixes"));
+      const fallback = nextDiagnostics(program, (d) => codes(d).includes("check_syntax"));
       writeConfig(edit);
-      await fallback; // a rule that only the default config has
+      await fallback; // the default config has no noIssues
       assert.ok(messages.length > before, `case ${i}: no warning`);
       const restored = nextDiagnostics(program, (d) => d.length === 0);
       writeConfig(() => undefined);
@@ -350,6 +358,91 @@ test("an unusable config falls back to the default config, with a warning", asyn
     }
   } finally {
     writeConfig(() => undefined);
+    close("src/zquiet.prog.abap");
+  }
+});
+
+test("an object outside global.files brings in its package folder and subpackages", async () => {
+  const clas = "pkg/zcl_pkg.clas.abap";
+  const intf = "pkg/sub/zif_pkg.intf.abap";
+  const ok = nextDiagnostics(uriOf(clas));
+  open(clas);
+  assert.deepEqual(await ok, []);
+
+  // Files in the folder follow the disk, including deletes and new files.
+  const source = fs.readFileSync(path.join(root, intf), "utf8");
+  try {
+    const missing = nextDiagnostics(uriOf(clas), (d) => codes(d).includes("check_syntax"));
+    fs.rmSync(path.join(root, intf));
+    diskChange(intf, 3);
+    await missing;
+  } finally {
+    const back = nextDiagnostics(uriOf(clas), (d) => d.length === 0);
+    fs.writeFileSync(path.join(root, intf), source);
+    diskChange(intf, 1);
+    await back;
+  }
+
+  // Closing a folder file puts its disk contents back.
+  const intfOk = nextDiagnostics(uriOf(intf));
+  open(intf, source.replace("METHODS run", "METHODS go"));
+  await intfOk;
+  const broken = nextDiagnostics(uriOf(clas), (d) => d.length > 0);
+  change(clas, fs.readFileSync(path.join(root, clas), "utf8") + "\n");
+  await broken;
+  const fixed = nextDiagnostics(uriOf(clas), (d) => d.length === 0);
+  close(intf);
+  await fixed;
+  close(clas);
+});
+
+test("an object outside global.files without a package.devc.xml brings in its own folder", async () => {
+  const ok = nextDiagnostics(uriOf("flat/zcl_flat.clas.abap"));
+  open("flat/zcl_flat.clas.abap");
+  assert.deepEqual(await ok, []);
+  close("flat/zcl_flat.clas.abap");
+});
+
+test("copies of an object in two folders outside global.files don't merge", async () => {
+  const copy = fs.readFileSync(path.join(root, "flat/zcl_flat.clas.abap"), "utf8");
+  fs.mkdirSync(path.join(root, "flat2"));
+  fs.writeFileSync(path.join(root, "flat2/zcl_flat.clas.abap"), copy.replace("rv_result = 1.", "rv_result = lv_unknown."));
+  try {
+    const first = nextDiagnostics(uriOf("flat/zcl_flat.clas.abap"));
+    open("flat/zcl_flat.clas.abap");
+    assert.deepEqual(await first, []);
+    // The second copy is checked on its own: its interface isn't next to it.
+    const second = nextDiagnostics(uriOf("flat2/zcl_flat.clas.abap"), (d) => d.length > 0);
+    open("flat2/zcl_flat.clas.abap");
+    assert.ok(codes(await second).includes("check_syntax"));
+    const still = nextDiagnostics(uriOf("flat/zcl_flat.clas.abap"));
+    change("flat/zcl_flat.clas.abap", copy + "\n");
+    assert.deepEqual(await still, []);
+  } finally {
+    close("flat2/zcl_flat.clas.abap");
+    close("flat/zcl_flat.clas.abap");
+  }
+});
+
+test("a backup copy of a project object doesn't bring its folder into the project", async () => {
+  fs.mkdirSync(path.join(root, "backup"));
+  fs.copyFileSync(path.join(root, "src/zgreet.prog.abap"), path.join(root, "backup/zgreet.prog.abap"));
+  fs.writeFileSync(
+    path.join(root, "backup/zcl_gone.clas.abap"),
+    fs.readFileSync(path.join(root, "src/zcl_shape.clas.abap"), "utf8").replaceAll("zcl_shape", "zcl_gone"),
+  );
+  const user = "src/zuse_gone.prog.abap";
+  try {
+    const backup = nextDiagnostics(uriOf("backup/zgreet.prog.abap"));
+    open("backup/zgreet.prog.abap");
+    await backup;
+    // ZCL_GONE is only in the backup folder, so the project can't see it.
+    const broken = nextDiagnostics(uriOf(user), (d) => d.length > 0);
+    open(user, "REPORT zuse_gone.\nzcl_gone=>size( ).\n");
+    assert.ok(codes(await broken).includes("check_syntax"));
+  } finally {
+    close(user);
+    close("backup/zgreet.prog.abap");
   }
 });
 
@@ -392,6 +485,20 @@ test("package.json pins exact versions (the extension installs these)", () => {
   const { dependencies } = require("../package.json");
   for (const [name, version] of Object.entries(dependencies)) {
     assert.match(version, /^\d+\.\d+\.\d+$/, `${name}@${version}`);
+  }
+});
+
+test("findFiles doesn't walk deeper than a glob without ** can match", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "zed-abaplint-depth-"));
+  try {
+    fs.mkdirSync(path.join(dir, "sub"));
+    fs.writeFileSync(path.join(dir, "zcl_a.clas.abap"), "");
+    fs.writeFileSync(path.join(dir, "sub", "zcl_b.clas.abap"), "");
+    const prefix = dir.split(path.sep).join("/");
+    assert.deepEqual(findFiles(prefix, "/*.*"), [`${prefix}/zcl_a.clas.abap`]);
+    assert.equal(findFiles(prefix, "/**/*.*").length, 2);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });
 

@@ -1,0 +1,4 @@
+INTERFACE zif_flat PUBLIC.
+  METHODS run
+    RETURNING VALUE(rv_result) TYPE i.
+ENDINTERFACE.
