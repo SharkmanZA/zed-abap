@@ -89,9 +89,18 @@ before(async () => {
     processId: process.pid,
     rootUri: pathToFileURL(root).href,
     workspaceFolders: [{ uri: pathToFileURL(root).href, name: "project" }],
-    capabilities: { workspace: { didChangeWatchedFiles: { dynamicRegistration: true } } },
+    // What Zed sends, as far as the server cares.
+    capabilities: {
+      workspace: {
+        didChangeWatchedFiles: { dynamicRegistration: true },
+        workspaceEdit: { documentChanges: true, resourceOperations: ["create", "rename", "delete"] },
+      },
+    },
   });
   assert.equal(result.serverInfo.name, "abaplint");
+  for (const provider of ["hover", "definition", "implementation", "references", "documentSymbol", "documentFormatting", "rename", "codeAction"]) {
+    assert.ok(result.capabilities[`${provider}Provider`], provider);
+  }
   connection.sendNotification("initialized", {});
 });
 
@@ -443,6 +452,337 @@ test("a backup copy of a project object doesn't bring its folder into the projec
   } finally {
     close(user);
     close("backup/zgreet.prog.abap");
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Language features
+
+const at = (relative, line, character) => ({ textDocument: { uri: uriOf(relative) }, position: { line, character } });
+
+/** Opens `relative` and waits until it has been checked. */
+async function openChecked(relative, text) {
+  const checked = nextDiagnostics(uriOf(relative));
+  open(relative, text);
+  await checked;
+}
+
+test("hover shows what's under the cursor, without abaplint's debugging details", async () => {
+  await openChecked("src/zgreet.prog.abap");
+  try {
+    // lv_text in `DATA lv_text TYPE string.`
+    const variable = await connection.sendRequest("textDocument/hover", at("src/zgreet.prog.abap", 2, 7));
+    assert.equal(variable.contents.kind, "markdown");
+    assert.match(variable.contents.value, /lv_text/);
+    assert.match(variable.contents.value, /string/);
+    // greet in `zcl_greeter=>greet( )`
+    const method = await connection.sendRequest("textDocument/hover", at("src/zgreet.prog.abap", 5, 25));
+    assert.match(method.contents.value, /greet/);
+    assert.doesNotMatch(method.contents.value, /Extra:|\(Resolved\)/);
+    // Blank line.
+    assert.equal(await connection.sendRequest("textDocument/hover", at("src/zgreet.prog.abap", 1, 0)), null);
+  } finally {
+    close("src/zgreet.prog.abap");
+  }
+});
+
+test("go to definition finds the declaration, in other files too", async () => {
+  await openChecked("src/zgreet.prog.abap");
+  try {
+    const local = await connection.sendRequest("textDocument/definition", at("src/zgreet.prog.abap", 6, 10));
+    assert.equal(local.uri, uriOf("src/zgreet.prog.abap"));
+    assert.deepEqual(local.range.start, { line: 2, character: 5 });
+
+    const method = await connection.sendRequest("textDocument/definition", at("src/zgreet.prog.abap", 5, 25));
+    assert.equal(method.uri, uriOf("src/zcl_greeter.clas.abap"));
+    assert.equal(method.range.start.line, 2);
+
+    // Follows an edit that hasn't been checked yet.
+    change("src/zgreet.prog.abap", "REPORT zgreet.\n\n\nDATA lv_text TYPE string.\nlv_text = `x`.\n");
+    const moved = await connection.sendRequest("textDocument/definition", at("src/zgreet.prog.abap", 4, 2));
+    assert.deepEqual(moved.range.start, { line: 3, character: 5 });
+  } finally {
+    close("src/zgreet.prog.abap");
+  }
+});
+
+test("go to definition in a file without an abapGit name points at that file", async () => {
+  await openChecked("loose.abap", "DATA lv_x TYPE i.\nlv_x = 1.\n");
+  try {
+    const found = await connection.sendRequest("textDocument/definition", at("loose.abap", 1, 1));
+    assert.equal(found.uri, uriOf("loose.abap"));
+    assert.deepEqual(found.range.start, { line: 0, character: 5 });
+  } finally {
+    close("loose.abap");
+  }
+});
+
+test("find references includes the declaration when asked", async () => {
+  await openChecked("src/zgreet.prog.abap");
+  try {
+    const params = { ...at("src/zgreet.prog.abap", 5, 25), context: { includeDeclaration: true } };
+    const found = await connection.sendRequest("textDocument/references", params);
+    const where = found.map((location) => `${path.basename(location.uri)}:${location.range.start.line}`).sort();
+    assert.deepEqual(where, ["zcl_greeter.clas.abap:2", "zcl_greeter.clas.abap:7", "zgreet.prog.abap:5"]);
+
+    const without = await connection.sendRequest("textDocument/references", { ...params, context: { includeDeclaration: false } });
+    assert.equal(without.length, 2);
+  } finally {
+    close("src/zgreet.prog.abap");
+  }
+});
+
+test("go to implementation finds a method's implementation", async () => {
+  await openChecked("src/zgreet.prog.abap");
+  try {
+    const found = await connection.sendRequest("textDocument/implementation", at("src/zgreet.prog.abap", 5, 25));
+    assert.deepEqual(
+      found.map((location) => [path.basename(location.uri), location.range.start.line]),
+      [["zcl_greeter.clas.abap", 7]],
+    );
+  } finally {
+    close("src/zgreet.prog.abap");
+  }
+});
+
+test("document symbols list a class and its methods", async () => {
+  await openChecked("src/zcl_greeter.clas.abap");
+  try {
+    const symbols = await connection.sendRequest("textDocument/documentSymbol", { textDocument: { uri: uriOf("src/zcl_greeter.clas.abap") } });
+    const names = JSON.stringify(symbols).toLowerCase();
+    assert.match(names, /zcl_greeter/);
+    assert.match(names, /greet/);
+  } finally {
+    close("src/zcl_greeter.clas.abap");
+  }
+});
+
+test("formatting replaces the document with abaplint's pretty printed text", async () => {
+  const text = "report zfmt.\ndata lv_x type i.\n    write lv_x.";
+  await openChecked("src/zfmt.prog.abap", text);
+  try {
+    const edits = await connection.sendRequest("textDocument/formatting", {
+      textDocument: { uri: uriOf("src/zfmt.prog.abap") },
+      options: { tabSize: 2, insertSpaces: true },
+    });
+    assert.equal(edits.length, 1);
+    assert.deepEqual(edits[0].range, { start: { line: 0, character: 0 }, end: { line: 2, character: 15 } });
+    assert.match(edits[0].newText, /^REPORT zfmt\.\nDATA lv_x TYPE i\.\nWRITE lv_x\./);
+
+    change("src/zfmt.prog.abap", edits[0].newText);
+    assert.deepEqual(
+      await connection.sendRequest("textDocument/formatting", {
+        textDocument: { uri: uriOf("src/zfmt.prog.abap") },
+        options: { tabSize: 2, insertSpaces: true },
+      }),
+      [],
+    );
+  } finally {
+    close("src/zfmt.prog.abap");
+  }
+});
+
+test("renaming a variable edits every use, for the open document's version", async () => {
+  await openChecked("src/zgreet.prog.abap");
+  try {
+    const prepared = await connection.sendRequest("textDocument/prepareRename", at("src/zgreet.prog.abap", 2, 7));
+    assert.equal(prepared.placeholder, "lv_text");
+
+    const edit = await connection.sendRequest("textDocument/rename", { ...at("src/zgreet.prog.abap", 2, 7), newName: "lv_msg" });
+    // One change per file: Zed applies them in order, so several for the
+    // same file would each shift the next one's positions.
+    assert.equal(edit.documentChanges.length, 1);
+    const lines = [];
+    for (const change of edit.documentChanges) {
+      assert.equal(change.textDocument.uri, uriOf("src/zgreet.prog.abap"));
+      assert.equal(typeof change.textDocument.version, "number");
+      for (const e of change.edits) {
+        assert.equal(e.newText, "lv_msg");
+        lines.push(e.range.start.line);
+      }
+    }
+    assert.deepEqual([...new Set(lines)].sort(), [2, 5, 6]);
+
+    // Nothing to rename on a keyword.
+    assert.equal(await connection.sendRequest("textDocument/prepareRename", at("src/zgreet.prog.abap", 0, 2)), null);
+  } finally {
+    close("src/zgreet.prog.abap");
+  }
+});
+
+test("find references and rename still see other files after an edit", async () => {
+  await openChecked("src/zcl_greeter.clas.abap");
+  const source = fs.readFileSync(path.join(root, "src/zcl_greeter.clas.abap"), "utf8");
+  try {
+    const params = { ...at("src/zcl_greeter.clas.abap", 2, 20), context: { includeDeclaration: true } };
+    const before = await connection.sendRequest("textDocument/references", params);
+    change("src/zcl_greeter.clas.abap", source + "\n");
+    const after = await connection.sendRequest("textDocument/references", params);
+    assert.deepEqual(after, before);
+    assert.ok(after.some((location) => location.uri === uriOf("src/zgreet.prog.abap")));
+  } finally {
+    close("src/zcl_greeter.clas.abap");
+  }
+});
+
+test("renaming a method from a call site renames its declaration, in its own file", async () => {
+  await openChecked("src/zgreet.prog.abap");
+  try {
+    const edit = await connection.sendRequest("textDocument/rename", { ...at("src/zgreet.prog.abap", 5, 25), newName: "hello" });
+    const byFile = Object.fromEntries(
+      edit.documentChanges.map((change) => [path.basename(change.textDocument.uri), change.edits.map((e) => e.range.start.line).sort()]),
+    );
+    assert.deepEqual(byFile, { "zcl_greeter.clas.abap": [2, 7], "zgreet.prog.abap": [5] });
+  } finally {
+    close("src/zgreet.prog.abap");
+  }
+});
+
+test("renaming an interface method renames only the name after intf~", async () => {
+  await openChecked("pkg/sub/zif_pkg.intf.abap");
+  try {
+    // `METHODS run` in zif_pkg; zcl_pkg implements `METHOD zif_pkg~run.`
+    const edit = await connection.sendRequest("textDocument/rename", { ...at("pkg/sub/zif_pkg.intf.abap", 1, 11), newName: "go" });
+    const implementation = edit.documentChanges.find((change) => change.textDocument.uri === uriOf("pkg/zcl_pkg.clas.abap"));
+    const line = fs.readFileSync(path.join(root, "pkg/zcl_pkg.clas.abap"), "utf8").split("\n")[implementation.edits[0].range.start.line];
+    const { start, end } = implementation.edits[0].range;
+    assert.equal(line.slice(start.character, end.character), "run");
+    assert.equal(line.slice(0, start.character).trimStart(), "METHOD zif_pkg~");
+  } finally {
+    close("pkg/sub/zif_pkg.intf.abap");
+  }
+});
+
+test("rename is refused for built-ins and parameters", async () => {
+  const text = [
+    "CLASS zcl_greeter DEFINITION PUBLIC FINAL CREATE PUBLIC.",
+    "  PUBLIC SECTION.",
+    "    CLASS-METHODS greet",
+    "      IMPORTING iv_name TYPE string OPTIONAL",
+    "      RETURNING VALUE(rv_text) TYPE string.",
+    "ENDCLASS.",
+    "",
+    "CLASS zcl_greeter IMPLEMENTATION.",
+    "  METHOD greet.",
+    "    rv_text = iv_name.",
+    "    IF sy-subrc = 0.",
+    "    ENDIF.",
+    "  ENDMETHOD.",
+    "ENDCLASS.",
+  ].join("\n");
+  await openChecked("src/zcl_greeter.clas.abap", text);
+  try {
+    for (const [line, character, name] of [[10, 8, "sy"], [9, 16, "iv_name"]]) {
+      assert.equal(await connection.sendRequest("textDocument/prepareRename", at("src/zcl_greeter.clas.abap", line, character)), null, name);
+      await assert.rejects(
+        connection.sendRequest("textDocument/rename", { ...at("src/zcl_greeter.clas.abap", line, character), newName: "zz" }),
+        new RegExp(name),
+      );
+    }
+  } finally {
+    close("src/zcl_greeter.clas.abap");
+  }
+});
+
+test("requests work with the cursor just after a name", async () => {
+  await openChecked("src/zgreet.prog.abap");
+  try {
+    // Right after `lv_text` in `  WRITE lv_text.`
+    const found = await connection.sendRequest("textDocument/definition", at("src/zgreet.prog.abap", 6, 15));
+    assert.deepEqual(found.range.start, { line: 2, character: 5 });
+    const prepared = await connection.sendRequest("textDocument/prepareRename", at("src/zgreet.prog.abap", 2, 12));
+    assert.equal(prepared.placeholder, "lv_text");
+  } finally {
+    close("src/zgreet.prog.abap");
+  }
+});
+
+test("renaming a class renames its files and its uses", async () => {
+  await openChecked("src/zgreet.prog.abap");
+  try {
+    const edit = await connection.sendRequest("textDocument/rename", { ...at("src/zgreet.prog.abap", 5, 14), newName: "zcl_hello" });
+    const renames = edit.documentChanges.filter((change) => change.kind === "rename");
+    assert.deepEqual(
+      renames.map((rename) => [path.basename(rename.oldUri), path.basename(rename.newUri)]).sort(),
+      [
+        ["zcl_greeter.clas.abap", "zcl_hello.clas.abap"],
+        ["zcl_greeter.clas.xml", "zcl_hello.clas.xml"],
+      ],
+    );
+    // Renames come after the text edits, which use the old names.
+    assert.equal(edit.documentChanges.at(-1).kind, "rename");
+    const edited = edit.documentChanges.filter((change) => change.textDocument).map((change) => path.basename(change.textDocument.uri));
+    assert.ok(edited.includes("zgreet.prog.abap"), edited.join());
+    assert.ok(edited.includes("zcl_greeter.clas.abap"), edited.join());
+    // The dependency folder's copy is left alone.
+    assert.ok(edit.documentChanges.every((change) => !(change.textDocument?.uri ?? change.oldUri).includes("/deps/")));
+  } finally {
+    close("src/zgreet.prog.abap");
+  }
+});
+
+test("dependency files can be read but not changed", async () => {
+  await openChecked("deps/src/zcl_dep.clas.abap");
+  try {
+    const hover = await connection.sendRequest("textDocument/hover", at("deps/src/zcl_dep.clas.abap", 0, 8));
+    assert.ok(hover !== null);
+    assert.equal(await connection.sendRequest("textDocument/prepareRename", at("deps/src/zcl_dep.clas.abap", 0, 8)), null);
+    assert.equal(
+      await connection.sendRequest("textDocument/formatting", {
+        textDocument: { uri: uriOf("deps/src/zcl_dep.clas.abap") },
+        options: { tabSize: 2, insertSpaces: true },
+      }),
+      null,
+    );
+  } finally {
+    close("deps/src/zcl_dep.clas.abap");
+  }
+});
+
+test("quick fixes come from the findings at the cursor", async () => {
+  // Outside every project, so the default config (with implement_methods) applies.
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "zed-abaplint-fix-"));
+  const uri = pathToFileURL(path.join(outside, "zfix.prog.abap")).href;
+  const text = [
+    "REPORT zfix.",
+    "INTERFACE lif_run.",
+    "  METHODS run.",
+    "ENDINTERFACE.",
+    "CLASS lcl_run DEFINITION.",
+    "  PUBLIC SECTION.",
+    "    INTERFACES lif_run.",
+    "ENDCLASS.",
+    "CLASS lcl_run IMPLEMENTATION.",
+    "ENDCLASS.",
+    "",
+  ].join("\n");
+  try {
+    const checked = nextDiagnostics(uri, (d) => codes(d).includes("implement_methods"));
+    connection.sendNotification("textDocument/didOpen", { textDocument: { uri, languageId: "abap", version: version++, text } });
+    const [finding] = (await checked).filter((d) => d.code === "implement_methods");
+
+    const actions = await connection.sendRequest("textDocument/codeAction", {
+      textDocument: { uri },
+      range: finding.range,
+      context: { diagnostics: [finding] },
+    });
+    assert.equal(actions.length, 1, JSON.stringify(actions));
+    assert.equal(actions[0].kind, "quickfix");
+    assert.equal(actions[0].diagnostics[0].code, "implement_methods");
+    const [change] = actions[0].edit.documentChanges;
+    assert.equal(change.textDocument.uri, uri);
+    assert.match(change.edits.map((e) => e.newText).join(""), /METHOD lif_run~run/i);
+
+    // Nothing at a line without findings.
+    const none = await connection.sendRequest("textDocument/codeAction", {
+      textDocument: { uri },
+      range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+      context: { diagnostics: [] },
+    });
+    assert.deepEqual(none, []);
+    connection.sendNotification("textDocument/didClose", { textDocument: { uri } });
+  } finally {
+    fs.rmSync(outside, { recursive: true, force: true });
   }
 });
 
