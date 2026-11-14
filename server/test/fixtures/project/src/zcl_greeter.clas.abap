@@ -1,0 +1,11 @@
+CLASS zcl_greeter DEFINITION PUBLIC FINAL CREATE PUBLIC.
+  PUBLIC SECTION.
+    CLASS-METHODS greet
+      RETURNING VALUE(rv_text) TYPE string.
+ENDCLASS.
+
+CLASS zcl_greeter IMPLEMENTATION.
+  METHOD greet.
+    rv_text = `Hello`.
+  ENDMETHOD.
+ENDCLASS.

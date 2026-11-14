@@ -7,3 +7,5 @@ grammar/build/
 *.dylib
 *.so
 .DS_Store
+# Rust build output (Zed builds the extension to extension.wasm)
+/target/

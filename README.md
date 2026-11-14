@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/SharkmanZA/zed-abap/actions/workflows/ci.yml/badge.svg)](https://github.com/SharkmanZA/zed-abap/actions/workflows/ci.yml)
 
-ABAP language support for [Zed](https://zed.dev): syntax highlighting, a nested outline / symbol search, auto-indent, code folding, bracket matching, comment toggling, Vim text objects and an optional file icon theme.
+ABAP language support for [Zed](https://zed.dev): syntax highlighting, a nested outline / symbol search, auto-indent, code folding, bracket matching, comment toggling, Vim text objects, [abaplint](https://abaplint.org) diagnostics and an optional file icon theme.
 
 <p align="center"><img src="docs/images/highlighting.png" alt="examples/sample.abap open in Zed with ABAP syntax highlighting" width="700"></p>
 
@@ -14,6 +14,10 @@ ABAP language support for [Zed](https://zed.dev): syntax highlighting, a nested 
 ```
 zed-abap/
 ├── extension.toml          # Zed extension manifest (points at grammar/ by commit SHA)
+├── Cargo.toml, src/lib.rs  # extension code: installs and starts the abaplint server
+├── server/                 # abaplint language server (Node, @abaplint/core)
+│   ├── server.js
+│   └── test/               # LSP round-trip tests: npm test
 ├── languages/abap/
 │   ├── config.toml         # file types, comments, brackets
 │   ├── highlights.scm      # highlighting
@@ -40,9 +44,10 @@ zed-abap/
 
 ## Install locally
 
-1. In Zed, open the command palette and run **`zed: install dev extension`**.
-2. Pick this folder.
-3. Open `examples/sample.abap`.
+1. Install Rust with [rustup](https://rustup.rs). Zed compiles the extension's `src/lib.rs` to WASM, which needs a rustup toolchain (not Homebrew's Rust).
+2. In Zed, open the command palette and run **`zed: install dev extension`**.
+3. Pick this folder.
+4. Open `examples/sample.abap`.
 
 Zed checks out the grammar at the `rev` in `extension.toml` and compiles it to WASM into `grammars/` (git-ignored). Check **`zed: open log`** if anything fails.
 
@@ -61,6 +66,40 @@ If the theme isn't listed, run **`zed: rebuild dev extension`**: Zed registers i
 <p align="center"><img src="docs/images/file-icons.png" alt="Zed project panel with the ABAP icon on .abap files" width="320"></p>
 
 Every `.abap` file (in lower or UPPER case) gets a blue **A.** tile, `icons/abap.svg`. Zed shows one icon theme at a time, so choosing this one replaces any other icon theme you use. Every non-ABAP file keeps Zed's default icon: Zed merges its default file associations into extension icon themes and falls back to its default icons for anything the theme doesn't draw.
+
+## abaplint diagnostics
+
+The extension runs [abaplint](https://abaplint.org) as a language server, so its findings show as diagnostics while you type. Each one names its rule and links to the rule's documentation at [rules.abaplint.org](https://rules.abaplint.org).
+
+On first use the extension installs the server's npm packages with Zed's own Node into Zed's extension work directory, so nothing is installed globally. `@abaplint/core` (the parser and rules) is updated to its latest version when Zed starts, so new ABAP syntax and rule fixes arrive without an extension update. The server's other packages are pinned in `server/package.json`.
+
+**Configuration** works like the abaplint CLI. The server reads `abaplint.json`, `abaplint.jsonc` or `abaplint.json5` from the root of the folder you open in Zed. Without one it uses abaplint's default config, which turns on every rule. That is thorough but noisy, so add a config with the rules you want (`npx @abaplint/cli -d` prints the default one to start from). A minimal config for syntax errors only:
+
+```json
+{
+  "global": { "files": "/src/**/*.*" },
+  "syntax": { "version": "v757", "errorNamespace": "^(Z|Y|LCL_|TY_|LIF_)" },
+  "rules": { "parser_error": true, "check_syntax": true }
+}
+```
+
+Config changes are picked up without a restart.
+
+- **Projects.** The files matching `global.files` (relative to the root, default `/src/**/*.*`) are loaded together, abapGit style (`zcl_x.clas.abap`, `zcl_x.clas.xml`, `ztab.tabl.xml`, …). References between your objects resolve, and a change to one object rechecks the others you have open. An include's errors are found by checking the programs that include it. `exclude` and `noIssues` patterns are regular expressions matched against absolute paths, as in the CLI; if one isn't a valid regex, the server warns and uses the default config. Symlinks are followed and folders starting with `.` are skipped. Open the folder that holds `abaplint.json` (usually the repository) in Zed: the server doesn't look for a config in subfolders.
+- **Dependencies.** `dependencies` entries with a local `folder` are loaded before the project, so an object in both is the project's. Their files aren't checked when you open them. Git `url` dependencies (and `useApackDependencies`) aren't cloned: clone them yourself and point `folder` at the clone.
+- **Files outside a project.** A file without an abapGit name (`sample.abap`) is checked on its own, as a program, with the folder's config. An abapGit-named file outside `global.files` is checked against the project while it's open, unless the project already has that object (a backup or a copy); then it is checked on its own.
+- **Only diagnostics.** abaplint can also do hover, go to definition, formatting, quick fixes and rename. Those aren't wired up yet.
+- **Turning it off:** `"languages": { "ABAP": { "language_servers": ["!abaplint", "..."] } }` in `settings.json`.
+- **Running another build of the server:** `"lsp": { "abaplint": { "binary": { "path": "node", "arguments": ["/path/to/server/server.js", "--stdio"] } } }` runs that command instead of the installed server (run `npm install` in its folder first). The server's log is under **`dev: open language server logs`**.
+
+## Working on the abaplint server
+
+```sh
+(cd server && npm install && npm test)             # LSP round-trip tests
+cargo build --release --target wasm32-wasip2       # the extension, as Zed builds it
+```
+
+`src/lib.rs` embeds `server/server.js` at build time, so run **`zed: rebuild dev extension`** after changing it. The extension installs the versions in `server/package.json`, so keep them exact and run `npm install` to update `package-lock.json` when you change them.
 
 ## Working on the grammar
 
@@ -156,10 +195,6 @@ AMDP methods (`METHOD m BY DATABASE PROCEDURE …`) are blocks whose body is kep
 - **Blocks tolerate unbalanced code.** Closing statements are optional, so an IF you haven't closed yet doesn't turn the rest of the file into a parse error. Any `END…` closes, and any clause keyword (`ELSE`, `WHEN`, `CATCH`, …) continues, the innermost open block. In valid ABAP that is always the matching one. Accepting them in every block also keeps parser generation under ~2 s, where tracking which block accepts which keyword grew combinatorially with the number of block types. The side effect only shows while typing unbalanced code: an `ENDMETHOD` below an unclosed `IF` closes the `IF` until you add the `ENDIF`. An `END…` with no open block at all is an ordinary statement.
 - **Block keywords are still usable as names.** `method = 'GET'.`, `form->run( ).`, `do( ).` and `DATA method TYPE string.` are ordinary statements about variables or methods with those names.
 - **Comment toggling uses `"` only.** `*` comments must start in column 0, but Zed matches comment prefixes after indentation, so `* factor` continuation lines would be treated as comments.
-
-## Ideas / next steps
-
-- abaplint language server for diagnostics.
 
 ## License
 

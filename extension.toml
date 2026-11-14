@@ -1,7 +1,7 @@
 id = "abap"
 name = "ABAP"
-description = "ABAP syntax highlighting, outline, auto-indent and file icons for Zed, powered by a Tree-sitter grammar."
-version = "0.2.0"
+description = "ABAP syntax highlighting, outline, auto-indent, file icons and abaplint diagnostics for Zed, powered by a Tree-sitter grammar."
+version = "0.3.0"
 schema_version = 1
 authors = ["Jake Mileham"]
 repository = "https://github.com/SharkmanZA/zed-abap"
@@ -15,3 +15,9 @@ repository = "https://github.com/SharkmanZA/zed-abap"
 repository = "https://github.com/SharkmanZA/zed-abap"
 rev = "3d5afd280e10df36e5260878463f0b7eb88a6e4c"
 path = "grammar"
+
+# abaplint diagnostics. src/lib.rs installs the server's npm packages and runs
+# server/server.js with Zed's Node.
+[language_servers.abaplint]
+name = "abaplint"
+languages = ["ABAP"]

@@ -1,6 +1,7 @@
 # Checks for every pull request into main and every push to main.
 # The same steps can be run locally: scripts/bump-grammar.sh covers the first
-# four for grammar changes.
+# four for grammar changes, `npm test` in server/ the language server, and
+# `cargo build --release --target wasm32-wasip2` the extension.
 name: CI
 
 on:
@@ -142,3 +143,61 @@ jobs:
           for e in errors:
               print(f"::error::{e}")
           sys.exit(1 if errors else 0)
+
+  server:
+    name: abaplint language server
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Tests (pinned @abaplint/core)
+        run: npm test
+
+      - name: Tests (latest @abaplint/core, which the extension installs)
+        run: |
+          npm install --no-save --no-audit --no-fund @abaplint/core@latest
+          # Not `npm ls`: it exits 1 when the version differs from the pin.
+          node -p "'@abaplint/core ' + require('@abaplint/core/package.json').version"
+          npm test
+
+  rust:
+    name: Rust extension
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          rustup toolchain install stable --profile minimal --component clippy,rustfmt --target wasm32-wasip2
+          rustup default stable
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ hashFiles('Cargo.lock') }}
+
+      - name: Formatted
+        run: cargo fmt --check
+
+      - name: Clippy
+        run: cargo clippy --target wasm32-wasip2 -- -D warnings
+
+      - name: Builds for Zed (wasm32-wasip2)
+        run: cargo build --release --target wasm32-wasip2
